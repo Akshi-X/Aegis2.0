@@ -28,9 +28,9 @@ router = APIRouter(prefix="/bank", tags=["bank"])
 # not a permissible operation on it.
 _STATUS_BY_ERROR: dict[type[AegisError], int] = {
     AccountNotFoundError: status.HTTP_404_NOT_FOUND,
-    InsufficientFundsError: status.HTTP_422_UNPROCESSABLE_CONTENT,
-    CurrencyMismatchError: status.HTTP_422_UNPROCESSABLE_CONTENT,
-    SameAccountTransferError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    InsufficientFundsError: status.HTTP_422_UNPROCESSABLE_ENTITY,
+    CurrencyMismatchError: status.HTTP_422_UNPROCESSABLE_ENTITY,
+    SameAccountTransferError: status.HTTP_422_UNPROCESSABLE_ENTITY,
 }
 
 
@@ -82,7 +82,7 @@ def transfer(
 
         raise HTTPException(
             status_code=_STATUS_BY_ERROR.get(
-                type(exc), status.HTTP_422_UNPROCESSABLE_CONTENT
+                type(exc), status.HTTP_422_UNPROCESSABLE_ENTITY
             ),
             detail={"code": exc.code, "message": exc.message},
         ) from exc
