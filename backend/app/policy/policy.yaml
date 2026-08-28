@@ -1,0 +1,115 @@
+# =============================================================================
+# AEGIS-X security policy
+#
+# Every threshold, weight, and risk score the engines use lives here. Nothing
+# is tuned in code. This file is meant to be read by a human reviewer or an
+# auditor -- if a control is weakened, it is weakened visibly in a diff.
+#
+# The file is validated against app/core/policy.py on load, with unknown keys
+# rejected: a misspelled setting fails loudly instead of silently reverting to
+# a default and disabling a control.
+# =============================================================================
+
+version: 1
+description: >-
+  Default AEGIS-X policy. Risk scores are 0-100 where 100 means categorically
+  disqualifying.
+
+# -----------------------------------------------------------------------------
+# Authority engine: may this agent do this, at all?
+# -----------------------------------------------------------------------------
+authority:
+  # Risk each individual violation justifies on its own. The engine reports the
+  # MAXIMUM of the violations it finds, never their sum -- three violations are
+  # not "worse than certain", and summing would let minor flags outrank a hard
+  # limit breach.
+  risk_scores:
+    agent_not_found: 100
+    agent_not_active: 100
+    action_type_not_permitted: 100
+    unauthorized_source_account: 95
+    source_account_missing: 95
+    transaction_limit_exceeded: 85
+    currency_not_permitted: 80
+    daily_limit_exceeded: 80
+    insufficient_funds: 70
+    approaching_transaction_limit: 25
+    approaching_daily_limit: 25
+
+  # Fraction of a limit at which an agent is flagged but not failed.
+  approaching_limit_ratio: 0.80
+
+  # Risk at or above this makes the engine report FAIL. Below it, any violation
+  # is a WARN.
+  fail_at_or_above: 70
+
+# -----------------------------------------------------------------------------
+# Risk fusion: combining independent engine signals
+# -----------------------------------------------------------------------------
+fusion:
+  # Weight per GROUP, summing to 1.0 at full coverage. Engines that did not
+  # report are excluded and these weights are renormalised over the rest.
+  group_weights:
+    authority: 0.25
+    behavioural: 0.25
+    intent: 0.15
+    cascade: 0.15
+    counterparty: 0.10
+    blast_radius: 0.10
+
+  # Engines sharing a group are correlated and combine by max(), not sum.
+  # financial_dna and anomaly read overlapping features, so adding both would
+  # count one behavioural signal twice.
+  engine_groups:
+    authority: authority
+    intent: intent
+    financial_dna: behavioural
+    anomaly: behavioural
+    cascade: cascade
+    counterparty: counterparty
+    blast_radius: blast_radius
+
+  warn_at_or_above: 30
+  fail_at_or_above: 70
+
+# -----------------------------------------------------------------------------
+# Dynamic trust: how much autonomy has this agent earned?
+# -----------------------------------------------------------------------------
+trust:
+  # Evaluated highest-first; an agent takes the first tier it qualifies for.
+  tiers:
+    - {min_score: 90, tier: HIGH_AUTONOMY}
+    - {min_score: 70, tier: NORMAL_AUTONOMY}
+    - {min_score: 50, tier: CONSTRAINED}
+    - {min_score: 30, tier: HIGH_MONITORING}
+    - {min_score: 0, tier: SUSPENDED}
+
+# -----------------------------------------------------------------------------
+# Governance: turning evidence into a decision
+# -----------------------------------------------------------------------------
+governance:
+  # Any single engine at or above this decides the outcome by itself, BEFORE
+  # fusion runs. Without this, a critical finding weighted at 0.25 would
+  # contribute only 25 points to the fused score and survive.
+  hard_override_risk: 90
+
+  # Fused-score bands, applied only once coverage is complete.
+  execute_below: 30
+  constrain_below: 50
+  delay_below: 70
+
+  # Trust tiers permitted to reach EXECUTE without human review.
+  autonomous_tiers:
+    - HIGH_AUTONOMY
+    - NORMAL_AUTONOMY
+
+  # Every one of these must report before an action may be auto-approved.
+  # Refusing an action needs one engine; authorising one needs all of them.
+  required_engines_for_autonomy:
+    - authority
+    - intent
+    - financial_dna
+    - anomaly
+    - cascade
+    - counterparty
+    - blast_radius

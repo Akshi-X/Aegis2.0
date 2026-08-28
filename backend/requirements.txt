@@ -1,0 +1,26 @@
+# --- Web framework -----------------------------------------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# --- Validation & settings ---------------------------------------------------
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+# Security policy is a validated YAML document (app/policy/policy.yaml).
+pyyaml==6.0.2
+
+# --- Database ----------------------------------------------------------------
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+alembic==1.14.0
+
+# --- HTTP client -------------------------------------------------------------
+# Used by the Gemini instruction parser and by the test client.
+httpx==0.28.1
+
+# --- Testing -----------------------------------------------------------------
+pytest==8.3.4
+
+# NOTE: machine-learning (scikit-learn, pandas, numpy) and graph analysis
+# (networkx) are intentionally absent. They are added in the phase that
+# introduces them, to keep the image small.

@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --color-slate-850: #141b2d;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+  
+  --color-aegis-green: #10b981;
+  --color-aegis-yellow: #f59e0b;
+  --color-aegis-red: #ef4444;
+  --color-aegis-blue: #3b82f6;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-200 antialiased font-sans;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-xl;
+  }
+  
+  .badge {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider border;
+  }
+  
+  .badge-green {
+    @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/20;
+  }
+  
+  .badge-yellow {
+    @apply bg-amber-500/10 text-amber-400 border-amber-500/20;
+  }
+  
+  .badge-red {
+    @apply bg-rose-500/10 text-rose-400 border-rose-500/20;
+  }
+  
+  .badge-blue {
+    @apply bg-blue-500/10 text-blue-400 border-blue-500/20;
+  }
+  
+  .badge-slate {
+    @apply bg-slate-500/10 text-slate-400 border-slate-500/20;
+  }
+}
