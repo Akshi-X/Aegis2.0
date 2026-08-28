@@ -20,6 +20,27 @@ class FinancialDNAProfile(BaseModel):
     typical_daily_exposure: float
     last_updated: datetime
 
+class DashboardMetricsResponse(BaseModel):
+    active_agents: int
+    actions_today: int
+    executed_actions: int
+    blocked_actions: int
+    average_trust: float
+
+
+class AgentOverview(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    status: str
+    objective: str
+    trust_score: float
+    max_transaction_limit: float
+    daily_limit: float
+    allowed_actions: list[str]
+    allowed_currencies: list[str]
+
 
 class AgentTaskRequest(BaseModel):
     # Accepts the numeric id or the agent's name, so the endpoint is usable

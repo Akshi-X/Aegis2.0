@@ -36,6 +36,9 @@ MAIN_COMPANY_ACCOUNT = "ACC1000000001"
 # (account_name, account_number, balance, owner_type)
 ACCOUNTS: list[tuple[str, str, Decimal, OwnerType]] = [
     ("Main Company Account", MAIN_COMPANY_ACCOUNT, Decimal("500000000.00"), OwnerType.COMPANY),
+    ("Procurement Budget", "ACC1000000002", Decimal("500000000.00"), OwnerType.COMPANY),
+    ("Marketing Budget", "ACC1000000003", Decimal("500000000.00"), OwnerType.COMPANY),
+    ("HR Budget", "ACC1000000004", Decimal("500000000.00"), OwnerType.COMPANY),
     ("ABC Technologies", "ACC2000000001", Decimal("0.00"), OwnerType.VENDOR),
     ("XYZ Cloud", "ACC2000000002", Decimal("0.00"), OwnerType.VENDOR),
     ("Unknown Account", "ACC9000000001", Decimal("0.00"), OwnerType.EXTERNAL),
@@ -106,7 +109,50 @@ def seed_database(*, force: bool = False) -> bool:
             trust_score=Decimal("85.00"),
             source_account_id=accounts[MAIN_COMPANY_ACCOUNT].id,
         )
-        db.add(treasury_agent)
+        
+        procurement_agent = Agent(
+            name="Procurement Agent",
+            description="Purchases hardware and software supplies for internal teams.",
+            objective="Purchase hardware and software supplies.",
+            status=AgentStatus.ACTIVE,
+            max_transaction_limit=Decimal("200000.00"),
+            daily_limit=Decimal("1000000.00"),
+            allowed_actions=["TRANSFER"],
+            allowed_currencies=["INR", "USD"],
+            authorized_account_ids=[],
+            trust_score=Decimal("75.00"),
+            source_account_id=accounts["ACC1000000002"].id,
+        )
+
+        marketing_agent = Agent(
+            name="Marketing Agent",
+            description="Manages digital ad spend across platforms.",
+            objective="Fund digital advertising campaigns.",
+            status=AgentStatus.ACTIVE,
+            max_transaction_limit=Decimal("10000.00"),
+            daily_limit=Decimal("50000.00"),
+            allowed_actions=["TRANSFER"],
+            allowed_currencies=["INR", "USD"],
+            authorized_account_ids=[],
+            trust_score=Decimal("60.00"),
+            source_account_id=accounts["ACC1000000003"].id,
+        )
+
+        hr_agent = Agent(
+            name="HR Agent",
+            description="Manages employee reimbursements and payroll funding.",
+            objective="Process employee reimbursements and payroll.",
+            status=AgentStatus.ACTIVE,
+            max_transaction_limit=Decimal("500000.00"),
+            daily_limit=Decimal("2000000.00"),
+            allowed_actions=["TRANSFER"],
+            allowed_currencies=["INR"],
+            authorized_account_ids=[],
+            trust_score=Decimal("95.00"),
+            source_account_id=accounts["ACC1000000004"].id,
+        )
+
+        db.add_all([treasury_agent, procurement_agent, marketing_agent, hr_agent])
 
         db.add(
             AuditLog(
@@ -116,14 +162,14 @@ def seed_database(*, force: bool = False) -> bool:
                 payload={
                     "accounts": len(ACCOUNTS),
                     "counterparties": len(COUNTERPARTIES),
-                    "agents": 1,
+                    "agents": 4,
                 },
             )
         )
 
         db.commit()
         logger.info(
-            "Seeded %d accounts, %d counterparties, 1 agent",
+            "Seeded %d accounts, %d counterparties, 4 agents",
             len(ACCOUNTS),
             len(COUNTERPARTIES),
         )

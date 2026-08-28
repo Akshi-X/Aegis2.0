@@ -36,6 +36,8 @@ export function StatusBadge({ status }: { status: string }) {
       case "NOT_IMPLEMENTED":
       case "EVALUATED":
         return "slate";
+      case "PROCESSING":
+        return "blue";
       default:
         return "slate";
     }

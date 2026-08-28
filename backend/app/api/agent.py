@@ -8,10 +8,10 @@ be bypassed.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
@@ -20,13 +20,90 @@ from app.core.exceptions import (
     NoSourceAccountError,
 )
 from app.database.session import get_db
-from app.schemas.agent import ActionProposalRead, AgentTaskRequest, AgentTaskResponse, FinancialDNAProfile
+from app.schemas.agent import ActionProposalRead, AgentTaskRequest, AgentTaskResponse, FinancialDNAProfile, AgentOverview, DashboardMetricsResponse
 from app.services import agent as agent_service
 from app.services.engines.financial_dna import FinancialDNAService
 from app.services.engines.base import EvaluationContext
-from app.models import Agent
+from app.models import Agent, ActionProposal, Transaction
+from app.models.enums import AgentStatus, ProposalStatus
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+@router.get(
+    "/metrics",
+    response_model=DashboardMetricsResponse,
+    summary="Get aggregated dashboard metrics",
+)
+def get_dashboard_metrics(db: Session = Depends(get_db)) -> DashboardMetricsResponse:
+    # 1. Active agents
+    active_agents = db.scalar(
+        select(func.count()).select_from(Agent).where(Agent.status == AgentStatus.ACTIVE)
+    ) or 0
+
+    # 2. Average trust score
+    avg_trust = db.scalar(
+        select(func.avg(Agent.trust_score)).where(Agent.status == AgentStatus.ACTIVE)
+    )
+    avg_trust = float(avg_trust) if avg_trust is not None else 0.0
+
+    # 3. Actions today (proposals created in last 24h)
+    # Using simple date filtering for demonstration
+    now = datetime.now(timezone.utc)
+    one_day_ago = now - timedelta(days=1)
+    
+    actions_today = db.scalar(
+        select(func.count()).select_from(ActionProposal).where(ActionProposal.created_at >= one_day_ago)
+    ) or 0
+
+    # 4. Executed actions today (transactions created in last 24h)
+    executed_actions = db.scalar(
+        select(func.count()).select_from(Transaction).where(Transaction.timestamp >= one_day_ago)
+    ) or 0
+
+    # 5. Blocked actions today (proposals that were blocked in last 24h)
+    blocked_actions = db.scalar(
+        select(func.count()).select_from(ActionProposal).where(
+            ActionProposal.created_at >= one_day_ago,
+            ActionProposal.status == ProposalStatus.BLOCKED
+        )
+    ) or 0
+
+    return DashboardMetricsResponse(
+        active_agents=active_agents,
+        actions_today=actions_today,
+        executed_actions=executed_actions,
+        blocked_actions=blocked_actions,
+        average_trust=round(avg_trust, 1),
+    )
+
+
+@router.get(
+    "",
+    response_model=list[AgentOverview],
+    summary="List all agents",
+)
+def list_agents(db: Session = Depends(get_db)) -> list[AgentOverview]:
+    agents = db.scalars(select(Agent)).all()
+    return [AgentOverview.model_validate(a) for a in agents]
+
+
+@router.get(
+    "/{agent_id}",
+    response_model=AgentOverview,
+    summary="Get agent details",
+    responses={
+        404: {"description": "Agent does not exist"},
+    },
+)
+def get_agent(agent_id: int, db: Session = Depends(get_db)) -> AgentOverview:
+    agent = db.scalar(select(Agent).where(Agent.id == agent_id))
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "agent_not_found", "message": f"Agent {agent_id} not found"},
+        )
+    return AgentOverview.model_validate(agent)
 
 
 @router.post(

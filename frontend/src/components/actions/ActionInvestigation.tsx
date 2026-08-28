@@ -15,6 +15,9 @@ export function ActionInvestigation() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [evaluating, setEvaluating] = useState(false);
+  const [visibleEngines, setVisibleEngines] = useState<string[]>([]);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [finalDecisionVisible, setFinalDecisionVisible] = useState(false);
 
   async function loadData() {
     if (!id) return;
@@ -29,8 +32,12 @@ export function ActionInvestigation() {
       
       if (evals && evals.length > 0) {
         setData({ proposal, evaluation: evals[0] });
+        setVisibleEngines(["authority", "financial_dna", "intent", "counterparty", "cascade", "governance"]);
+        setFinalDecisionVisible(true);
       } else {
         setData({ proposal, evaluation: null as any }); // not evaluated yet
+        setVisibleEngines([]);
+        setFinalDecisionVisible(false);
       }
     } catch (err: any) {
       setError(err.message || "Failed to load action details");
@@ -47,12 +54,31 @@ export function ActionInvestigation() {
     if (!id) return;
     try {
       setEvaluating(true);
+      setIsSimulating(true);
+      setVisibleEngines([]);
+      setFinalDecisionVisible(false);
+      
       const result = await api.evaluateAction(id);
       setData(result);
+      
+      // Simulate sequential engine processing for visual impact
+      const engineSequence = ["authority", "financial_dna", "intent", "counterparty", "cascade", "governance"];
+      
+      for (let i = 0; i < engineSequence.length; i++) {
+        await new Promise(r => setTimeout(r, 600)); // 600ms processing time per engine
+        setVisibleEngines(prev => [...prev, engineSequence[i]]);
+      }
+      
+      await new Promise(r => setTimeout(r, 800));
+      setFinalDecisionVisible(true);
+      
     } catch (err: any) {
       alert("Evaluation failed: " + err.message);
+      setVisibleEngines(["authority", "financial_dna", "intent", "counterparty", "cascade", "governance"]);
+      setFinalDecisionVisible(true);
     } finally {
       setEvaluating(false);
+      setIsSimulating(false);
     }
   };
 
@@ -163,14 +189,17 @@ export function ActionInvestigation() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
               <Shield className="w-5 h-5 text-emerald-400" /> Security Pipeline
+              {isSimulating && <span className="ml-2 text-xs bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded animate-pulse">PROCESSING...</span>}
             </h2>
             
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">Final Decision:</span>
-              <span className={cn("text-xl font-bold tracking-widest", decisionColor)}>
-                {evaluation.decision}
-              </span>
-            </div>
+            {finalDecisionVisible && (
+              <div className="flex items-center gap-3 animate-in fade-in zoom-in duration-500">
+                <span className="text-sm text-slate-400">Final Decision:</span>
+                <span className={cn("text-xl font-bold tracking-widest", decisionColor)}>
+                  {evaluation.decision}
+                </span>
+              </div>
+            )}
           </div>
           
           {/* Timeline Wrapper */}
@@ -180,89 +209,105 @@ export function ActionInvestigation() {
             <div className="absolute bottom-0 -left-1.5 w-3 h-3 rounded-full bg-slate-700" />
             
             {/* Identity & Authority */}
-            <div className="relative">
-              <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-              <SecurityEngineCard 
-                engineName="Identity & Authority" 
-                description="Validates agent capabilities, constraints, and daily limits."
-                icon={<Fingerprint className="w-5 h-5" />}
-                result={evaluation.engine_results["authority"]}
-              >
-                {evaluation.engine_results["authority"]?.status === "PASS" && (
-                   <p className="text-xs text-slate-400">Limits verified. Daily spend within boundaries.</p>
-                )}
-              </SecurityEngineCard>
-            </div>
+            {(visibleEngines.includes("authority") || isSimulating) && (
+              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
+                <SecurityEngineCard 
+                  engineName="Identity & Authority" 
+                  description="Validates agent capabilities, constraints, and daily limits."
+                  icon={<Fingerprint className="w-5 h-5" />}
+                  result={visibleEngines.includes("authority") ? evaluation.engine_results["authority"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
+                >
+                  {visibleEngines.includes("authority") && evaluation.engine_results["authority"]?.status === "PASS" && (
+                     <p className="text-xs text-slate-400 mt-2">Limits verified. Daily spend within boundaries.</p>
+                  )}
+                </SecurityEngineCard>
+              </div>
+            )}
 
             {/* Financial DNA */}
-            <div className="relative">
-              <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-              <SecurityEngineCard 
-                engineName="Financial DNA" 
-                description="Checks historical deviation of amount, time, and recipient."
-                icon={<Dna className="w-5 h-5" />}
-                result={evaluation.engine_results["financial_dna"]}
-              >
-                {evaluation.engine_results["financial_dna"]?.status === "PASS" && (
-                   <p className="text-xs text-slate-400">Transaction matches established behavioural baseline.</p>
-                )}
-              </SecurityEngineCard>
-            </div>
+            {(visibleEngines.includes("financial_dna") || (isSimulating && visibleEngines.includes("authority"))) && (
+              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
+                <SecurityEngineCard 
+                  engineName="Financial DNA" 
+                  description="Checks historical deviation of amount, time, and recipient."
+                  icon={<Dna className="w-5 h-5" />}
+                  result={visibleEngines.includes("financial_dna") ? evaluation.engine_results["financial_dna"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
+                >
+                  {visibleEngines.includes("financial_dna") && evaluation.engine_results["financial_dna"]?.status === "PASS" && (
+                     <p className="text-xs text-slate-400 mt-2">Transaction matches established behavioural baseline.</p>
+                  )}
+                </SecurityEngineCard>
+              </div>
+            )}
 
-            {/* Future Engines - Placeholders */}
-            <div className="relative">
-              <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-              <SecurityEngineCard 
-                engineName="Intent Alignment" 
-                description="AI-driven analysis of agent prompt manipulation and objective drift."
-                icon={<BrainCircuit className="w-5 h-5" />}
-                result={evaluation.engine_results["intent"]}
-              />
-            </div>
+            {/* Intent Alignment */}
+            {(visibleEngines.includes("intent") || (isSimulating && visibleEngines.includes("financial_dna"))) && (
+              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
+                <SecurityEngineCard 
+                  engineName="Intent Alignment" 
+                  description="AI-driven analysis of agent prompt manipulation and objective drift."
+                  icon={<BrainCircuit className="w-5 h-5" />}
+                  result={visibleEngines.includes("intent") ? evaluation.engine_results["intent"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
+                />
+              </div>
+            )}
             
-            <div className="relative">
-              <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-              <SecurityEngineCard 
-                engineName="Counterparty Intelligence" 
-                description="External risk enrichment and entity resolution for the recipient."
-                icon={<Users2 className="w-5 h-5" />}
-                result={evaluation.engine_results["counterparty"]}
-              />
-            </div>
+            {/* Counterparty Intelligence */}
+            {(visibleEngines.includes("counterparty") || (isSimulating && visibleEngines.includes("intent"))) && (
+              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
+                <SecurityEngineCard 
+                  engineName="Counterparty Intelligence" 
+                  description="External risk enrichment and entity resolution for the recipient."
+                  icon={<Users2 className="w-5 h-5" />}
+                  result={visibleEngines.includes("counterparty") ? evaluation.engine_results["counterparty"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
+                />
+              </div>
+            )}
 
-            <div className="relative">
-              <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-              <SecurityEngineCard 
-                engineName="Cascade Detection" 
-                description="Detects multi-agent coordinated attacks and structured movements."
-                icon={<Network className="w-5 h-5" />}
-                result={evaluation.engine_results["cascade"]}
-              />
-            </div>
+            {/* Cascade Detection */}
+            {(visibleEngines.includes("cascade") || (isSimulating && visibleEngines.includes("counterparty"))) && (
+              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
+                <SecurityEngineCard 
+                  engineName="Cascade Detection" 
+                  description="Detects multi-agent coordinated attacks and structured movements."
+                  icon={<Network className="w-5 h-5" />}
+                  result={visibleEngines.includes("cascade") ? evaluation.engine_results["cascade"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
+                />
+              </div>
+            )}
             
             {/* Risk Fusion */}
-            <div className="relative">
-              <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-              <SecurityEngineCard 
-                engineName="Risk Fusion & Governance" 
-                description="Synthesizes all signals and makes the final execution decision."
-                icon={<Zap className="w-5 h-5" />}
-                result={evaluation.engine_results["governance"]}
-              >
-                 <div className="flex items-center gap-4 mt-2">
-                    <div>
-                      <p className="text-[10px] text-slate-500 uppercase">Provisional</p>
-                      <p className="text-sm font-mono text-slate-300">{evaluation.provisional ? "TRUE" : "FALSE"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500 uppercase">Coverage</p>
-                      <p className="text-sm font-mono text-slate-300">
-                        {evaluation.coverage.implemented.length} / {evaluation.coverage.implemented.length + evaluation.coverage.not_implemented.length}
-                      </p>
-                    </div>
-                 </div>
-              </SecurityEngineCard>
-            </div>
+            {(visibleEngines.includes("governance") || (isSimulating && visibleEngines.includes("cascade"))) && (
+              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
+                <SecurityEngineCard 
+                  engineName="Risk Fusion & Governance" 
+                  description="Synthesizes all signals and makes the final execution decision."
+                  icon={<Zap className="w-5 h-5" />}
+                  result={visibleEngines.includes("governance") ? evaluation.engine_results["governance"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
+                >
+                  {visibleEngines.includes("governance") && (
+                     <div className="flex items-center gap-4 mt-2">
+                        <div>
+                          <p className="text-[10px] text-slate-500 uppercase">Provisional</p>
+                          <p className="text-sm font-mono text-slate-300">{evaluation.provisional ? "TRUE" : "FALSE"}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-500 uppercase">Coverage</p>
+                          <p className="text-sm font-mono text-slate-300">
+                            {evaluation.coverage.implemented.length} / {evaluation.coverage.implemented.length + evaluation.coverage.not_implemented.length}
+                          </p>
+                        </div>
+                     </div>
+                  )}
+                </SecurityEngineCard>
+              </div>
+            )}
 
           </div>
         </div>

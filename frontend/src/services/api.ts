@@ -51,41 +51,14 @@ export const api = {
 
   // Abstracted/Mocked endpoints for missing backend features
   async getAgents(): Promise<AgentOverview[]> {
-    // TODO: The backend does not currently have a GET /agents endpoint.
-    // This is a placeholder that returns a mock list based on our knowledge of the seed data.
-    return [
-      {
-        id: 1,
-        name: "Treasury Agent",
-        status: "ACTIVE",
-        objective: "Pay legitimate company vendor invoices.",
-        trust_score: 85.0,
-        max_transaction_limit: 100000.0,
-        daily_limit: 500000.0,
-        allowed_actions: ["TRANSFER"],
-        allowed_currencies: ["INR"],
-      },
-    ];
+    return fetchApi<AgentOverview[]>("/agent");
   },
 
   async getAgent(id: number): Promise<AgentOverview> {
-    // TODO: The backend does not currently have a GET /agents/{id} endpoint.
-    // This is a placeholder.
-    if (id === 1) {
-      return (await this.getAgents())[0];
-    }
-    throw new Error("Agent not found");
+    return fetchApi<AgentOverview>(`/agent/${id}`);
   },
 
   async getDashboardMetrics(): Promise<any> {
-    // TODO: No backend endpoint for aggregate dashboard metrics yet.
-    // Returning placeholder data.
-    return {
-      active_agents: 1,
-      actions_today: "N/A", // We'd need an endpoint or to fetch all actions and filter
-      executed_actions: "N/A",
-      blocked_actions: "N/A",
-      average_trust: 85,
-    };
+    return fetchApi<any>("/agent/metrics");
   },
 };
