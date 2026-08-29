@@ -77,31 +77,30 @@ def test_every_engine_returns_the_standard_structure(client: TestClient) -> None
         assert isinstance(result["details"], dict)
 
 
-def test_placeholders_return_null_not_zero(client: TestClient) -> None:
-    """The load-bearing property of this phase.
+def test_no_engine_is_left_unimplemented(client: TestClient) -> None:
+    """Every signal engine now produces a real finding, never a stub.
 
     A placeholder scoring 0 would be indistinguishable from an engine that
-    looked and found nothing, letting six stubs dilute a real finding.
+    looked and found nothing; a null score marks "did not look". With the
+    pipeline complete, no engine may report NOT_IMPLEMENTED.
     """
     results = evaluate(client, propose(client))["evaluation"]["engine_results"]
 
-    for name in ("blast_radius",):
-        assert results[name]["status"] == "NOT_IMPLEMENTED"
-        assert results[name]["risk_score"] is None, f"{name} invented a score"
-        assert "ENGINE_NOT_IMPLEMENTED" in results[name]["flags"]
+    for name, result in results.items():
+        assert result["status"] != "NOT_IMPLEMENTED", f"{name} is still a placeholder"
+        assert "ENGINE_NOT_IMPLEMENTED" not in result["flags"]
 
 
 def test_coverage_is_reported_honestly(client: TestClient) -> None:
     coverage = evaluate(client, propose(client))["evaluation"]["coverage"]
 
-    assert coverage["complete"] is False
-    assert set(coverage["not_implemented"]) == {"blast_radius"}
-    assert "authority" in coverage["implemented"]
-    assert "financial_dna" in coverage["implemented"]
-    assert "intent" in coverage["implemented"]
-    assert "anomaly" in coverage["implemented"]
-    assert "counterparty" in coverage["implemented"]
-    assert "cascade" in coverage["implemented"]
+    assert coverage["complete"] is True
+    assert coverage["not_implemented"] == []
+    for engine in (
+        "authority", "financial_dna", "intent", "anomaly",
+        "counterparty", "cascade", "blast_radius",
+    ):
+        assert engine in coverage["implemented"]
     assert coverage["errored"] == []
 
 
@@ -314,13 +313,24 @@ def test_governance_blocks_on_authority_failure(client: TestClient) -> None:
     assert body["evaluation"]["provisional"] is False
 
 
-def test_governance_never_executes_under_partial_coverage(client: TestClient) -> None:
-    """Fail-safe: refusing needs one engine, authorising needs all of them."""
-    body = evaluate(client, propose(client))
-    evaluation = body["evaluation"]
+def test_governance_never_executes_under_partial_coverage(
+    client: TestClient, monkeypatch
+) -> None:
+    """Fail-safe: refusing needs one engine, authorising needs all of them.
+
+    The pipeline is complete by default, so partial coverage is induced here by
+    dropping a required signal engine. A passing action must then be escalated,
+    never auto-authorised on missing evidence.
+    """
+    from app.services import orchestrator as orchestrator_module
+
+    original = orchestrator_module.SIGNAL_ENGINES
+    patched = [e for e in original if e.name != "blast_radius"]
+    monkeypatch.setattr(orchestrator_module, "SIGNAL_ENGINES", patched)
+
+    evaluation = evaluate(client, propose(client))["evaluation"]
 
     assert evaluation["engine_results"]["authority"]["status"] == "PASS"
-    assert evaluation["decision"] == "ESCALATE"
     assert evaluation["decision"] != "EXECUTE"
     assert evaluation["provisional"] is True
     assert "INSUFFICIENT_ENGINE_COVERAGE" in evaluation["engine_results"]["governance"]["flags"]

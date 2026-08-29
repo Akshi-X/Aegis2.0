@@ -1,5 +1,4 @@
 import { NavLink } from "react-router-dom";
-import { AegisMark } from "../common/Logo";
 import { cn } from "../../utils/cn";
 
 const NAV = [
@@ -16,9 +15,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <aside className="flex h-full w-full flex-col bg-surface border-r border-line">
       {/* Brand */}
-      <div className="flex h-16 items-center gap-2 px-5">
-        <AegisMark className="h-7 w-7 text-brand" />
-        <span className="text-[15px] font-semibold tracking-tight text-ink">
+      <div className="flex h-16 items-center px-5">
+        <span className="text-[16px] font-semibold tracking-tight text-ink">
           AEGIS<span className="text-brand">-X</span>
         </span>
       </div>

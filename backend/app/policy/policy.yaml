@@ -117,6 +117,24 @@ cascade:
   fail_at_or_above: 70
 
 # -----------------------------------------------------------------------------
+# Blast radius: how much damage if this action is wrong or malicious?
+# -----------------------------------------------------------------------------
+blast_radius:
+  # Exposure that on its own counts as maximal, as a fraction of the pool drawn
+  # from. The magnitude tracks the larger of the two.
+  balance_fraction_fail: 0.50     # half the source account balance
+  authority_fraction_fail: 1.0    # one full day's spending authority
+
+  # Recoverability multipliers, applied to the magnitude.
+  recoverable_factor: 0.5         # trusted vendor: likely clawback
+  unverified_factor: 0.9          # resolves to an account, not allow-listed
+  untrusted_factor: 1.0           # on record, explicitly not trusted
+  unresolved_factor: 1.15         # account maps to nothing: funds gone
+
+  warn_at_or_above: 40
+  fail_at_or_above: 70
+
+# -----------------------------------------------------------------------------
 # Dynamic trust: how much autonomy has this agent earned?
 # -----------------------------------------------------------------------------
 trust:

@@ -213,6 +213,33 @@ class CascadePolicy(_Strict):
         return self
 
 
+class BlastRadiusPolicy(_Strict):
+    """How much damage an action could do if it is wrong or malicious."""
+
+    # Exposure a single action represents, as a fraction of the pool it draws
+    # from. The blast magnitude tracks the larger of the two.
+    balance_fraction_fail: float = Field(0.50, gt=0, le=1)  # share of source balance
+    authority_fraction_fail: float = Field(1.0, gt=0)       # multiple of the daily limit
+
+    # Recoverability multipliers applied to the magnitude, keyed on how likely
+    # the funds are to be clawed back from the recipient.
+    recoverable_factor: float = Field(0.5, ge=0, le=2)   # trusted vendor
+    unverified_factor: float = Field(0.9, ge=0, le=2)    # resolves, not allow-listed
+    untrusted_factor: float = Field(1.0, ge=0, le=2)     # on record, not trusted
+    unresolved_factor: float = Field(1.15, ge=0, le=2)   # account maps to nothing
+
+    warn_at_or_above: float = Field(40, ge=0, le=100)
+    fail_at_or_above: float = Field(70, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def _check_bands(self) -> BlastRadiusPolicy:
+        if self.warn_at_or_above > self.fail_at_or_above:
+            raise ValueError(
+                "blast_radius.warn_at_or_above must not exceed fail_at_or_above"
+            )
+        return self
+
+
 class Policy(_Strict):
     """The complete, validated security policy."""
 
@@ -224,6 +251,7 @@ class Policy(_Strict):
     governance: GovernancePolicy
     counterparty: CounterpartyPolicy = Field(default_factory=CounterpartyPolicy)
     cascade: CascadePolicy = Field(default_factory=CascadePolicy)
+    blast_radius: BlastRadiusPolicy = Field(default_factory=BlastRadiusPolicy)
 
     @model_validator(mode="after")
     def _check_cross_section(self) -> Policy:

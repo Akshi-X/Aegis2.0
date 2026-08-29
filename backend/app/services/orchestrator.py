@@ -146,6 +146,16 @@ class AegisOrchestrator:
         recorded with a null score so it is excluded from fusion rather than
         being scored as harmless.
         """
+        # Check if user has toggled this engine off
+        if ENGINE_TOGGLES.get(engine.name, True) is False:
+            return EngineResult(
+                engine=engine.name,
+                status=EngineStatus.PASS,
+                risk_score=0.0,
+                flags=["ENGINE_DISABLED_BY_USER"],
+                details={"reason": "Engine was manually disabled in the Security dashboard."}
+            )
+
         try:
             return engine.evaluate(context)
         except Exception as exc:  # noqa: BLE001 - isolation is the point
@@ -209,9 +219,17 @@ class AegisOrchestrator:
         )
         db.add(evaluation)
 
-        # The proposal has now been assessed. It is *not* executed, blocked, or
-        # approved here -- acting on a decision is a later phase.
-        proposal.status = ProposalStatus.EVALUATED
+        # Update proposal status based on the governance decision
+        # This allows the dashboard metrics and live feed to reflect the outcome immediately.
+        if decision == GovernanceDecision.BLOCK:
+            proposal.status = ProposalStatus.BLOCKED
+        elif decision == GovernanceDecision.EXECUTE:
+            # For the demo, we mark it as executed. In a real system, a settlement worker would do this.
+            proposal.status = ProposalStatus.EXECUTED
+        elif decision in (GovernanceDecision.ESCALATE, GovernanceDecision.DELAY, GovernanceDecision.CONSTRAIN):
+            proposal.status = ProposalStatus.PENDING_APPROVAL
+        else:
+            proposal.status = ProposalStatus.EVALUATED
         db.flush()
 
         audit.record(

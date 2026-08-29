@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ProposalNotFoundError
 from app.database.session import get_db
 from app.models.enums import ProposalStatus
-from app.schemas.agent import ActionProposalRead
+from app.schemas.agent import ActionProposalRead, ActionStatusUpdate
 from app.schemas.evaluation import ActionEvaluationRead, EvaluationResponse
 from app.services import agent as agent_service
 from app.services import orchestrator as orchestrator_service
@@ -106,3 +106,30 @@ def list_action_evaluations(
         ) from exc
 
     return orchestrator_service.list_evaluations(db, proposal_id=proposal.id)
+    
+@router.patch(
+    "/actions/{action_id}/status",
+    response_model=ActionProposalRead,
+    summary="Update the status of an action proposal (Human Override)",
+)
+def update_action_status(
+    action_id: str, payload: ActionStatusUpdate, db: Session = Depends(get_db)
+) -> ActionProposalRead:
+    proposal = agent_service.get_proposal(db, action_id)
+    if not proposal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "action_not_found", "message": f"Action {action_id} not found"},
+        )
+        
+    # Only allow overriding if it hasn't been executed or failed
+    if proposal.status in (ProposalStatus.EXECUTED, ProposalStatus.FAILED):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "invalid_status", "message": "Cannot override an already executed or failed action"},
+        )
+        
+    proposal.status = payload.status
+    db.commit()
+    db.refresh(proposal)
+    return ActionProposalRead.model_validate(proposal)

@@ -56,6 +56,9 @@ class AgentTaskRequest(BaseModel):
     context: list[dict[str, Any]] | None = Field(default=None)
 
 
+class ActionStatusUpdate(BaseModel):
+    status: ProposalStatus = Field(description="The new status for the proposal (e.g. APPROVED or REJECTED)")
+
 class SourceAccountRef(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

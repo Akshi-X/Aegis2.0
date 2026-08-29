@@ -12,6 +12,9 @@ from pathlib import Path
 from datetime import timedelta
 from sqlalchemy import select, func
 
+from google import genai
+from app.core.config import settings
+
 from app.models import Transaction
 from app.models.enums import TransactionStatus
 from app.services.engines.base import EngineResult, EngineStatus, EvaluationContext
@@ -234,6 +237,31 @@ class AnomalyService:
             "raw_decision_score": round(float(raw_score), 4),
             "calibrated_score": risk_score
         }
+
+        # 5. Gemini AI Explanation
+        if flags and settings.gemini_api_key:
+            try:
+                client = genai.Client(api_key=settings.gemini_api_key)
+                prompt = f"""
+                You are a cybersecurity expert analyzing an anomaly detected by an Isolation Forest ML model.
+                
+                The transaction amount was {amount}, while the agent's historical rolling average is {round(agent_rolling_avg_amount, 2)}.
+                The transaction occurred at hour {hour_of_day}.
+                Is the recipient new to this agent? {"Yes" if is_new_recipient else "No"}.
+                Transactions in the last 5 minutes: {txns_last_5min}.
+                
+                The model flagged the following anomalies: {", ".join(flags)}.
+                
+                Provide a short, 2-3 sentence technical explanation of why this transaction is anomalous based on the ML features provided. Be concise and professional.
+                """
+                response = client.models.generate_content(
+                    model='gemini-2.5-pro',
+                    contents=prompt,
+                )
+                if response.text:
+                    details["gemini_reasoning"] = response.text.strip()
+            except Exception as e:
+                logger.warning(f"Failed to generate Gemini reasoning for anomaly: {e}")
 
         return EngineResult(
             engine=self.name,

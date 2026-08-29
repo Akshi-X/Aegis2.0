@@ -34,7 +34,7 @@ const SIGNAL: EngineMeta[] = [
   { title: "Intent Drift", description: "Trend analysis of behaviour over recent history.", icon: <TrendingUp className="h-[18px] w-[18px]" />, status: "active" },
   { title: "Cascade Detection", description: "Structuring, velocity spikes and coordinated moves.", icon: <Network className="h-[18px] w-[18px]" />, status: "active" },
   { title: "Counterparty Intelligence", description: "Graph analysis of the recipient's money-flow.", icon: <Users2 className="h-[18px] w-[18px]" />, status: "active" },
-  { title: "Blast Radius", description: "Estimates downstream financial impact of an action.", icon: <Zap className="h-[18px] w-[18px]" />, status: "soon" },
+  { title: "Blast Radius", description: "Estimates the damage if an action is wrong: exposure vs balance, authority and recoverability.", icon: <Zap className="h-[18px] w-[18px]" />, status: "active" },
 ];
 
 const AGGREGATION: EngineMeta[] = [

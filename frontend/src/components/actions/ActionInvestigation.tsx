@@ -14,6 +14,7 @@ import {
   Zap,
   CheckCircle2,
   ShieldAlert,
+  XCircle,
 } from "lucide-react";
 import { api } from "../../services/api";
 import type { ActionEvaluation, ActionProposal, EngineResult } from "../../types";
@@ -35,7 +36,7 @@ const PIPELINE: { key: string; title: string; description: string; icon: ReactNo
   { key: "anomaly", title: "ML Anomaly Engine", description: "Isolation Forest multi-dimensional outlier detection.", icon: <Activity className="h-[18px] w-[18px]" /> },
   { key: "cascade", title: "Cascade Detection", description: "Detects structuring and coordinated sequences.", icon: <Network className="h-[18px] w-[18px]" /> },
   { key: "counterparty", title: "Counterparty Intelligence", description: "Graph analysis of the recipient's money-flow.", icon: <Users2 className="h-[18px] w-[18px]" /> },
-  { key: "blast_radius", title: "Blast Radius", description: "Estimates downstream financial impact.", icon: <Zap className="h-[18px] w-[18px]" /> },
+  { key: "blast_radius", title: "Blast Radius", description: "Estimates the damage if this action is wrong or malicious.", icon: <Zap className="h-[18px] w-[18px]" /> },
 ];
 
 export function ActionInvestigation() {
@@ -59,10 +60,22 @@ export function ActionInvestigation() {
     try {
       const res = await api.evaluateAction(id);
       setOverride({ proposal: res.proposal, evaluation: res.evaluation });
+      reload(); // Refresh the main view as well
     } catch (e: any) {
       alert("Evaluation failed: " + e.message);
     } finally {
       setEvaluating(false);
+    }
+  }
+
+  async function handleOverride(status: "APPROVED" | "REJECTED") {
+    if (!id) return;
+    try {
+      await api.updateActionStatus(id, status);
+      reload(); // Reload to get updated status
+      setOverride(null); // Clear override state so it reflects db accurately
+    } catch (e: any) {
+      alert("Failed to update status: " + e.message);
     }
   }
 
@@ -160,7 +173,11 @@ export function ActionInvestigation() {
         </Card>
       ) : (
         <>
-          <DecisionBanner evaluation={evaluation} />
+          <DecisionBanner 
+            evaluation={evaluation} 
+            proposalStatus={proposal.status}
+            onOverride={handleOverride}
+          />
 
           <div>
             <SectionHeader title="Security Evaluation" subtitle={`${evaluation.engines_run} engines · ${evaluation.latency_ms.toFixed(0)}ms · coverage ${evaluation.coverage.implemented.length}/${evaluation.coverage.engines_total}`} />
@@ -176,7 +193,7 @@ export function ActionInvestigation() {
                       icon={engine.icon}
                       result={engineResult}
                     >
-                      {engine.key === "intent" && engineResult?.details?.gemini_reasoning && (
+                      {engineResult?.details?.gemini_reasoning && (
                         <div className="mt-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-3">
                           <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-indigo-400">
                             <BrainCircuit className="h-3.5 w-3.5" /> Gemini AI Reasoning
@@ -198,10 +215,21 @@ export function ActionInvestigation() {
   );
 }
 
-function DecisionBanner({ evaluation }: { evaluation: ActionEvaluation }) {
+function DecisionBanner({ 
+  evaluation, 
+  proposalStatus,
+  onOverride 
+}: { 
+  evaluation: ActionEvaluation;
+  proposalStatus: string;
+  onOverride: (status: "APPROVED" | "REJECTED") => void;
+}) {
   const tone = decisionTone(evaluation.decision);
   const accent = toneToHex[tone];
   const band = riskBand(evaluation.overall_risk_score);
+  
+  const isEscalated = evaluation.decision === "ESCALATE" || evaluation.decision === "DELAY";
+  const canOverride = isEscalated && proposalStatus !== "EXECUTED" && proposalStatus !== "FAILED";
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -230,6 +258,23 @@ function DecisionBanner({ evaluation }: { evaluation: ActionEvaluation }) {
       </div>
       {evaluation.decision_reason && (
         <p className="mt-3 border-t border-line pt-3 text-[13px] text-ink-soft">{evaluation.decision_reason}</p>
+      )}
+      
+      {canOverride && (
+        <div className="mt-4 flex items-center gap-3 border-t border-line pt-4">
+          <button 
+            onClick={() => onOverride("APPROVED")}
+            className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-4 py-2 text-[13px] font-semibold text-emerald-500 transition-colors hover:bg-emerald-500/20"
+          >
+            <CheckCircle2 className="h-4 w-4" /> Approve Action
+          </button>
+          <button 
+            onClick={() => onOverride("REJECTED")}
+            className="flex items-center gap-2 rounded-lg bg-rose-500/10 px-4 py-2 text-[13px] font-semibold text-rose-500 transition-colors hover:bg-rose-500/20"
+          >
+            <XCircle className="h-4 w-4" /> Decline Action
+          </button>
+        </div>
       )}
     </Card>
   );

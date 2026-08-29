@@ -46,4 +46,9 @@ export const api = {
   getAgents: () => http<AgentOverview[]>("/agent"),
   getAgent: (id: number) => http<AgentOverview>(`/agent/${id}`),
   getDashboardMetrics: () => http<DashboardMetrics>("/agent/metrics"),
+  updateActionStatus: (id: string, status: string) =>
+    http<ActionProposal>(`/actions/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
 };
