@@ -229,7 +229,7 @@ function DecisionBanner({
   const band = riskBand(evaluation.overall_risk_score);
   
   const isEscalated = evaluation.decision === "ESCALATE" || evaluation.decision === "DELAY";
-  const canOverride = isEscalated && proposalStatus !== "EXECUTED" && proposalStatus !== "FAILED";
+  const canOverride = isEscalated && !["EXECUTED", "FAILED", "APPROVED", "REJECTED"].includes(proposalStatus);
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-4">

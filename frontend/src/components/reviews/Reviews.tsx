@@ -101,13 +101,27 @@ export function Reviews() {
                 <div className="flex items-center gap-2">
                   <button
                     className="btn btn-danger btn-sm"
-                    onClick={() => setResolved((r) => ({ ...r, [proposal.action_id]: "rejected" }))}
+                    onClick={async () => {
+                      try {
+                        await api.updateActionStatus(proposal.action_id, "REJECTED");
+                        setResolved((r) => ({ ...r, [proposal.action_id]: "rejected" }));
+                      } catch (e) {
+                        alert("Failed to reject action.");
+                      }
+                    }}
                   >
                     <X className="h-4 w-4" /> Reject
                   </button>
                   <button
                     className="btn btn-primary btn-sm"
-                    onClick={() => setResolved((r) => ({ ...r, [proposal.action_id]: "approved" }))}
+                    onClick={async () => {
+                      try {
+                        await api.updateActionStatus(proposal.action_id, "APPROVED");
+                        setResolved((r) => ({ ...r, [proposal.action_id]: "approved" }));
+                      } catch (e) {
+                        alert("Failed to approve action.");
+                      }
+                    }}
                   >
                     <Check className="h-4 w-4" /> Approve
                   </button>

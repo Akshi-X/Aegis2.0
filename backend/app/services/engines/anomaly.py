@@ -186,14 +186,14 @@ class AnomalyService:
         try:
             X_scaled = self._scaler.transform(row)
             raw_score = self._model.decision_function(X_scaled)[0]
-            # Normalize to 0-100 range
+            # Normalize to 0-100 range, but cap at 89.0 to prevent hard blocking (allow human escalation instead)
             denom = self._raw_max - self._raw_min
             if denom > 0:
                 risk_score = round(float((1.0 - (raw_score - self._raw_min) / denom) * 100), 2)
             else:
                 risk_score = 50.0  # fallback default
 
-            risk_score = max(0.0, min(100.0, risk_score))
+            risk_score = max(0.0, min(89.0, risk_score))
         except Exception as exc:
             logger.error("Inference failed in AnomalyService", exc_info=True)
             return EngineResult(

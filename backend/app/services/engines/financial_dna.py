@@ -120,9 +120,9 @@ class FinancialDNAService:
         
         if req_amt > max_amt:
             flags.append("AMOUNT_OUTSIDE_NORMAL_RANGE")
-            # Risk scales with how far outside the range it is, up to 95
+            # Risk scales with how far outside the range it is, capped at 89 to prevent hard overrides
             excess_ratio = (req_amt - max_amt) / max_amt if max_amt > 0 else 1.0
-            amount_risk = min(95.0, 50.0 + (excess_ratio * 20.0))
+            amount_risk = min(89.0, 50.0 + (excess_ratio * 20.0))
             violations.append(amount_risk)
         
         # 2. Time deviation

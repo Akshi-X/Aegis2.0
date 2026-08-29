@@ -142,10 +142,19 @@ class GovernanceService:
                     decision = GovernanceDecision.CONSTRAIN
                     rules_fired.append("TRUST_TIER_DOWNGRADE")
 
-                reason = (
-                    f"Fused risk {fused_score} with trust tier {trust_tier}."
-                )
+                contributing_engines = []
+                for name, result in results.items():
+                    if result.status in (EngineStatus.FAIL, EngineStatus.WARN) and result.contributes:
+                        if name == 'anomaly' and 'gemini_reasoning' in result.details:
+                            contributing_engines.append(f"{name.capitalize()}: {result.details['gemini_reasoning']}")
+                        elif name == 'intent' and 'reason' in result.details:
+                            contributing_engines.append(f"{name.capitalize()}: {result.details['reason']}")
+                        elif result.flags:
+                            contributing_engines.append(f"{name.capitalize()} flagged: {', '.join(result.flags)}")
 
+                reason = f"Fused risk {fused_score} with trust tier {trust_tier}."
+                if decision != GovernanceDecision.EXECUTE and contributing_engines:
+                    reason += " Key Factors -> " + " | ".join(contributing_engines)
         # Governance reports a decision, not a risk score of its own.
         return EngineResult(
             engine=self.name,
