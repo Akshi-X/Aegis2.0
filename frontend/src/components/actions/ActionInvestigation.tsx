@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Play, ServerCrash, Shield, Fingerprint, BrainCircuit, Users2, Dna, Network, Zap, CheckCircle2, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Play, ServerCrash, Shield, Fingerprint, BrainCircuit, Users2, Dna, Network, Zap, CheckCircle2, ShieldAlert, Activity } from "lucide-react";
 import { api } from "../../services/api";
 import type { EvaluationResponse } from "../../types";
 import { PageContainer } from "../layout/PageContainer";
@@ -32,7 +32,7 @@ export function ActionInvestigation() {
       
       if (evals && evals.length > 0) {
         setData({ proposal, evaluation: evals[0] });
-        setVisibleEngines(["authority", "financial_dna", "intent", "counterparty", "cascade", "governance"]);
+        setVisibleEngines(["authority", "financial_dna", "anomaly", "intent", "counterparty", "cascade", "governance"]);
         setFinalDecisionVisible(true);
       } else {
         setData({ proposal, evaluation: null as any }); // not evaluated yet
@@ -62,7 +62,7 @@ export function ActionInvestigation() {
       setData(result);
       
       // Simulate sequential engine processing for visual impact
-      const engineSequence = ["authority", "financial_dna", "intent", "counterparty", "cascade", "governance"];
+      const engineSequence = ["authority", "financial_dna", "anomaly", "intent", "counterparty", "cascade", "governance"];
       
       for (let i = 0; i < engineSequence.length; i++) {
         await new Promise(r => setTimeout(r, 600)); // 600ms processing time per engine
@@ -74,7 +74,7 @@ export function ActionInvestigation() {
       
     } catch (err: any) {
       alert("Evaluation failed: " + err.message);
-      setVisibleEngines(["authority", "financial_dna", "intent", "counterparty", "cascade", "governance"]);
+      setVisibleEngines(["authority", "financial_dna", "anomaly", "intent", "counterparty", "cascade", "governance"]);
       setFinalDecisionVisible(true);
     } finally {
       setEvaluating(false);
@@ -110,9 +110,10 @@ export function ActionInvestigation() {
       ? "text-rose-400" 
       : "text-amber-400";
 
-  return (
-    <PageContainer>
-      {/* Header */}
+  try {
+    return (
+      <PageContainer>
+        {/* Header */}
       <div className="flex items-center gap-4 mb-2">
         <Link to="/actions" className="p-2 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors">
           <ArrowLeft className="w-5 h-5" />
@@ -231,7 +232,7 @@ export function ActionInvestigation() {
                 <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
                 <SecurityEngineCard 
                   engineName="Financial DNA" 
-                  description="Checks historical deviation of amount, time, and recipient."
+                  description="Checks historical deviation of amount, time, and recipient using heuristics."
                   icon={<Dna className="w-5 h-5" />}
                   result={visibleEngines.includes("financial_dna") ? evaluation.engine_results["financial_dna"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
                 >
@@ -242,8 +243,25 @@ export function ActionInvestigation() {
               </div>
             )}
 
+            {/* Behavioural Anomaly ML Model */}
+            {(visibleEngines.includes("anomaly") || (isSimulating && visibleEngines.includes("financial_dna"))) && (
+              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
+                <SecurityEngineCard 
+                  engineName="Machine Learning Anomaly Engine" 
+                  description="Unsupervised Isolation Forest model detecting multi-dimensional outliers."
+                  icon={<Activity className="w-5 h-5" />}
+                  result={visibleEngines.includes("anomaly") ? evaluation.engine_results["anomaly"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
+                >
+                  {visibleEngines.includes("anomaly") && evaluation.engine_results["anomaly"]?.status === "PASS" && (
+                     <p className="text-xs text-slate-400 mt-2">No latent behavioural anomalies detected by ML.</p>
+                  )}
+                </SecurityEngineCard>
+              </div>
+            )}
+
             {/* Intent Alignment */}
-            {(visibleEngines.includes("intent") || (isSimulating && visibleEngines.includes("financial_dna"))) && (
+            {(visibleEngines.includes("intent") || (isSimulating && visibleEngines.includes("anomaly"))) && (
               <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
                 <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
                 <SecurityEngineCard 
@@ -313,5 +331,23 @@ export function ActionInvestigation() {
         </div>
       )}
     </PageContainer>
-  );
+    );
+  } catch (renderError: any) {
+    return (
+      <PageContainer>
+        <div className="panel bg-rose-500/10 border-rose-500/20 text-rose-400">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <ServerCrash className="w-5 h-5" /> Render Error
+          </h2>
+          <p className="mt-2 text-sm font-mono whitespace-pre-wrap">{renderError.stack || renderError.message}</p>
+          <pre className="mt-4 p-4 bg-slate-900 rounded overflow-auto text-xs text-slate-300">
+            {JSON.stringify(data, null, 2)}
+          </pre>
+          <button onClick={() => window.location.reload()} className="mt-4 inline-block text-sm text-slate-300 hover:text-white underline">
+            Reload Page
+          </button>
+        </div>
+      </PageContainer>
+    );
+  }
 }

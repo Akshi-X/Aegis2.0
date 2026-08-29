@@ -12,8 +12,13 @@ from app.services.engines.anomaly import AnomalyService
 from app.services.engines.base import EvaluationContext, EngineStatus
 
 def setup_historical_data(db: Session, agent: Agent, vendor: BankAccount):
-    """Insert controlled historical transactions."""
-    amounts = [250.0, 250.0, 250.0, 250.0, 250.0]
+    """Insert controlled historical transactions.
+
+    Amounts sit in the Treasury Agent's real operating range (~20k-80k) so the
+    engine's per-agent baseline matches the distribution the model was trained
+    on; a spike is then something genuinely outside that range, not a value the
+    old toy-scale fixture (~250) called large."""
+    amounts = [45000.0, 52000.0, 48000.0, 51000.0, 49000.0]
     hours = [10, 11, 12, 13, 14]
     base_time = datetime(2026, 8, 1, tzinfo=timezone.utc)
 
@@ -45,7 +50,7 @@ def test_context(db: Session, agent: Agent, vendor: BankAccount) -> EvaluationCo
     proposal = ActionProposal(
         agent_id=agent.id,
         action_type=ActionType.TRANSFER,
-        amount=Decimal("250.00"),
+        amount=Decimal("50000.00"),
         currency="INR",
         recipient_name="ABC Technologies",
         recipient_account_number=vendor.account_number,
@@ -91,8 +96,8 @@ def test_anomaly_normal_transaction(test_context: EvaluationContext):
     assert "HIGH_BEHAVIOURAL_ANOMALY" not in result.flags
 
 def test_anomaly_large_amount_spike(test_context: EvaluationContext):
-    # Make amount extremely large (10x role average)
-    test_context.proposal.amount = Decimal("3000.00")
+    # Make amount extremely large (~10x the agent's ~50k baseline)
+    test_context.proposal.amount = Decimal("500000.00")
     engine = AnomalyService()
     result = engine.evaluate(test_context)
 

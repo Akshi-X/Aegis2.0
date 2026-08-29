@@ -126,15 +126,23 @@ class AnomalyService:
             if context.proposal.recipient_account_number and context.proposal.recipient_account_number in known_numbers:
                 is_new_recipient = 0
 
-        # agent_rolling_avg_amount
+        # agent_rolling_avg_amount / agent baseline. The baseline is the agent's
+        # *own* history, not a global constant: agents operate at wildly
+        # different scales (Marketing ~4k, HR ~250k), so a single hardcoded
+        # role average makes every agent look anomalous. This must match how
+        # train_anomaly_model.py builds the training features.
         amounts = [float(tx.amount) for tx in historical_txns]
         if amounts:
             agent_rolling_avg_amount = sum(amounts) / len(amounts)
+            variance = sum((a - agent_rolling_avg_amount) ** 2 for a in amounts) / len(amounts)
+            agent_std_amount = variance ** 0.5 or self.agent_role_std_amount
         else:
             agent_rolling_avg_amount = amount
+            agent_std_amount = self.agent_role_std_amount
 
-        # deviation_from_role_avg
-        deviation_from_role_avg = (amount - self.agent_role_avg_amount) / self.agent_role_std_amount
+        # deviation_from_role_avg: z-score against this agent's own baseline,
+        # so the feature is comparable across agents of different scale.
+        deviation_from_role_avg = (amount - agent_rolling_avg_amount) / agent_std_amount
 
         # txns_last_5min
         window_start = context.now - timedelta(minutes=5)
@@ -205,7 +213,7 @@ class AnomalyService:
             status = EngineStatus.PASS
 
         # Additional explainability flags for specific feature triggers
-        if amount > self.agent_role_avg_amount + 3 * self.agent_role_std_amount:
+        if amount > agent_rolling_avg_amount + 3 * agent_std_amount:
             flags.append("ANOMALOUS_AMOUNT_SPIKE")
         if hour_of_day < 6 or hour_of_day > 22:
             flags.append("ANOMALOUS_OFF_HOURS_ACTIVITY")
@@ -219,6 +227,7 @@ class AnomalyService:
             "hour_of_day": hour_of_day,
             "is_new_recipient": bool(is_new_recipient),
             "agent_rolling_avg_amount": round(agent_rolling_avg_amount, 2),
+            "agent_std_amount": round(agent_std_amount, 2),
             "deviation_from_role_avg": round(deviation_from_role_avg, 2),
             "txns_last_5min": txns_last_5min,
             "counterparty_risk_tier": counterparty_risk_tier,
