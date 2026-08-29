@@ -73,6 +73,50 @@ fusion:
   fail_at_or_above: 70
 
 # -----------------------------------------------------------------------------
+# Counterparty intelligence: who is being paid?
+# -----------------------------------------------------------------------------
+counterparty:
+  # Risk each finding justifies on its own. The engine reports the MAXIMUM.
+  risk_unresolved_recipient: 80    # account number maps to no known account
+  risk_unverified_recipient: 55    # resolves to an account, but not allow-listed
+  risk_untrusted_counterparty: 75  # on record, explicitly not trusted
+  risk_pass_through: 70            # collects from many and forwards onward
+  risk_rapid_forwarding: 65        # forwards most of what it receives
+  risk_proximity_to_flagged: 60    # transacts with a high-risk node
+
+  # Money-flow graph thresholds.
+  fan_out_mule_min: 3              # forwards to at least this many destinations
+  forwarding_ratio_min: 0.80       # share of received value that leaves again
+  proximity_risk_score: 70         # a neighbour at/above this is "flagged"
+
+  warn_at_or_above: 40
+  fail_at_or_above: 70
+
+# -----------------------------------------------------------------------------
+# Cascade & sequence: is this action one of a suspicious series?
+# -----------------------------------------------------------------------------
+cascade:
+  # Windows, in minutes, over which sequences are inspected.
+  burst_window_minutes: 10
+  velocity_window_minutes: 60
+  coordination_window_minutes: 15
+
+  rapid_repeat_count: 4            # transfers in the burst window (incl. proposal)
+  structuring_lower_ratio: 0.70    # "just under" the per-transaction limit
+  structuring_min_slices: 3        # this many just-under slices is smurfing
+  velocity_spike_factor: 4.0       # recent throughput this many x the baseline
+  velocity_min_events: 3           # ignore spikes from too little recent data
+  coordination_min_sources: 3      # distinct sources into one recipient
+
+  risk_rapid_repeats: 65
+  risk_structuring: 85
+  risk_velocity_spike: 60
+  risk_coordinated_cascade: 80
+
+  warn_at_or_above: 40
+  fail_at_or_above: 70
+
+# -----------------------------------------------------------------------------
 # Dynamic trust: how much autonomy has this agent earned?
 # -----------------------------------------------------------------------------
 trust:

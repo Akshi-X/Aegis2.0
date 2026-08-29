@@ -1,99 +1,99 @@
-import { ShieldAlert, ShieldCheck, HelpCircle, Activity } from "lucide-react";
-import type { EngineResult, EngineStatus } from "../../types";
-import { StatusBadge } from "./Badge";
-import { cn } from "../../utils/cn";
 import type { ReactNode } from "react";
+import { CheckCircle2, AlertTriangle, XCircle, Clock, MinusCircle } from "lucide-react";
+import type { EngineResult } from "../../types";
+import { Pill } from "./Badge";
+import { engineTone, toneToHex } from "../../utils/status";
+import { cn } from "../../utils/cn";
 
-interface SecurityEngineCardProps {
-  engineName: string;
-  description: string;
-  result?: EngineResult;
-  icon?: ReactNode;
-  children?: ReactNode;
-}
-
+/**
+ * One engine's verdict in the evaluation pipeline. Designed to carry future
+ * engines cleanly: pass `result=undefined` (or a NOT_IMPLEMENTED result) and it
+ * renders an honest "Not Evaluated" state with no fabricated score.
+ */
 export function SecurityEngineCard({
   engineName,
   description,
   result,
   icon,
-  children
-}: SecurityEngineCardProps) {
-  const isImplemented = result && result.status !== "NOT_IMPLEMENTED";
-  
-  const getBorderColor = (status?: EngineStatus) => {
-    if (!status || status === "NOT_IMPLEMENTED") return "border-slate-800";
-    if (status === "PASS") return "border-emerald-500/50";
-    if (status === "WARN") return "border-amber-500/50";
-    if (status === "FAIL" || status === "ERROR") return "border-rose-500/50";
-    return "border-slate-800";
-  };
-  
-  const getHeaderColor = (status?: EngineStatus) => {
-    if (!status || status === "NOT_IMPLEMENTED") return "text-slate-500";
-    if (status === "PASS") return "text-emerald-400";
-    if (status === "WARN") return "text-amber-400";
-    if (status === "FAIL" || status === "ERROR") return "text-rose-400";
-    return "text-slate-200";
-  };
+  children,
+}: {
+  engineName: string;
+  description: string;
+  result?: EngineResult;
+  icon?: ReactNode;
+  children?: ReactNode;
+}) {
+  const status = result?.status ?? "NOT_EVALUATED";
+  const processing = status === "PROCESSING";
+  const notReady = !result || status === "NOT_IMPLEMENTED" || status === "NOT_EVALUATED";
+  const tone = engineTone(status);
+  const accent = toneToHex[tone];
 
-  const getStatusIcon = (status?: EngineStatus) => {
-    if (!status || status === "NOT_IMPLEMENTED") return <HelpCircle className="w-5 h-5" />;
-    if (status === "PASS") return <ShieldCheck className="w-5 h-5" />;
-    if (status === "WARN" || status === "FAIL" || status === "ERROR") return <ShieldAlert className="w-5 h-5" />;
-    return <Activity className="w-5 h-5" />;
-  };
+  const statusLabel = notReady
+    ? "Not Evaluated"
+    : processing
+      ? "Processing"
+      : status;
 
   return (
-    <div className={cn(
-      "bg-slate-900 border rounded-lg p-5 transition-colors",
-      getBorderColor(result?.status),
-      !isImplemented && "opacity-60"
-    )}>
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={cn("p-2 rounded-md bg-slate-950", getHeaderColor(result?.status))}>
-            {icon || getStatusIcon(result?.status)}
-          </div>
+    <div
+      className={cn(
+        "card p-4 transition-colors",
+        notReady && "opacity-70"
+      )}
+      style={notReady ? undefined : { boxShadow: `inset 3px 0 0 ${accent}` }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span
+            className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+            style={{ background: notReady ? "var(--color-canvas)" : `${accent}14`, color: notReady ? "var(--color-ink-muted)" : accent }}
+          >
+            {icon ?? <StatusGlyph status={status} />}
+          </span>
           <div>
-            <h3 className="text-sm font-semibold tracking-wide uppercase text-slate-200">
-              {engineName.replace("_", " ")}
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+            <h3 className="text-[13.5px] font-semibold text-ink">{engineName}</h3>
+            <p className="mt-0.5 text-[12px] text-ink-muted">{description}</p>
           </div>
         </div>
-        
-        <div>
-          {result ? <StatusBadge status={result.status} /> : <StatusBadge status="NOT_EVALUATED" />}
-        </div>
+        <Pill tone={processing ? "brand" : tone}>{statusLabel}</Pill>
       </div>
 
-      {isImplemented && result && (
-        <div className="space-y-4">
-          {result.risk_score !== null && (
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-slate-400">Risk Score:</span>
-              <span className="font-mono font-medium text-slate-200">{result.risk_score.toFixed(1)}</span>
+      {!notReady && !processing && (
+        <div className="mt-3 space-y-2 pl-11">
+          {result?.risk_score != null && (
+            <div className="flex items-center gap-2 text-[12.5px]">
+              <span className="text-ink-muted">Risk</span>
+              <span className="font-mono font-medium text-ink">
+                {result.risk_score.toFixed(1)}
+              </span>
             </div>
           )}
-          
-          {result.flags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {result.flags.map((flag) => (
-                <span key={flag} className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-slate-300 border border-slate-700">
-                  {flag}
+          {result && result.flags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {result.flags.map((f) => (
+                <span
+                  key={f}
+                  className="rounded-md border border-line bg-canvas px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft"
+                >
+                  {f}
                 </span>
               ))}
             </div>
           )}
-          
-          {children && (
-            <div className="pt-3 border-t border-slate-800 mt-3">
-              {children}
-            </div>
-          )}
+          {children}
         </div>
       )}
     </div>
   );
+}
+
+function StatusGlyph({ status }: { status: string }) {
+  const s = status.toUpperCase();
+  const cls = "h-[18px] w-[18px]";
+  if (s === "PASS") return <CheckCircle2 className={cls} />;
+  if (s === "WARN") return <AlertTriangle className={cls} />;
+  if (s === "FAIL" || s === "ERROR") return <XCircle className={cls} />;
+  if (s === "PROCESSING") return <Clock className={cls} />;
+  return <MinusCircle className={cls} />;
 }

@@ -1,191 +1,191 @@
-import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Dna, Fingerprint, Activity } from "lucide-react";
+import { ArrowLeft, Dna, Fingerprint, Bot } from "lucide-react";
 import { api } from "../../services/api";
 import type { AgentOverview, FinancialDNAProfile, ActionProposal } from "../../types";
+import { useAsync } from "../../hooks/useAsync";
 import { PageContainer } from "../layout/PageContainer";
-import { formatCurrency, formatDate } from "../../utils/format";
+import { Card, SectionHeader } from "../common/Card";
 import { StatusBadge } from "../common/Badge";
+import { TrustIndicator } from "../common/TrustIndicator";
+import { FinancialDNARange } from "../common/FinancialDNARange";
+import { ActionRow } from "../common/ActionRow";
+import { ErrorState, EmptyState } from "../common/EmptyState";
+import { Skeleton } from "../common/Skeleton";
+import { formatCompactMoney, formatHour } from "../../utils/format";
+
+interface Bundle {
+  agent: AgentOverview;
+  dna: FinancialDNAProfile | null;
+  actions: ActionProposal[];
+}
 
 export function AgentDetails() {
   const { id } = useParams<{ id: string }>();
-  const [agent, setAgent] = useState<AgentOverview | null>(null);
-  const [dna, setDna] = useState<FinancialDNAProfile | null>(null);
-  const [actions, setActions] = useState<ActionProposal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const agentId = Number(id);
 
-  useEffect(() => {
-    async function loadData() {
-      if (!id) return;
-      try {
-        const [agentData, dnaData, actionsData] = await Promise.all([
-          api.getAgent(parseInt(id)),
-          api.getFinancialDNA(parseInt(id)).catch(() => null),
-          api.getActions().then(res => res.filter(a => a.agent_id === parseInt(id)).slice(0, 5))
-        ]);
-        setAgent(agentData);
-        setDna(dnaData);
-        setActions(actionsData);
-      } catch (error) {
-        console.error("Failed to load agent details", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [id]);
+  const { data, loading, error, reload } = useAsync<Bundle>(async () => {
+    const [agent, dna, actions] = await Promise.all([
+      api.getAgent(agentId),
+      api.getFinancialDNA(agentId).catch(() => null),
+      api.getActions().then((res) => res.filter((a) => a.agent_id === agentId).slice(0, 6)),
+    ]);
+    return { agent, dna, actions };
+  }, [agentId]);
 
   if (loading) {
-    return <PageContainer><div className="text-slate-400">Loading agent...</div></PageContainer>;
+    return (
+      <PageContainer>
+        <Skeleton className="h-8 w-56" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Skeleton className="h-48 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
+      </PageContainer>
+    );
+  }
+  if (error || !data) {
+    return (
+      <PageContainer>
+        <BackLink />
+        <Card padded={false}>
+          <ErrorState message={error ?? "Agent not found."} onRetry={reload} />
+        </Card>
+      </PageContainer>
+    );
   }
 
-  if (!agent) {
-    return <PageContainer><div className="text-rose-400">Agent not found.</div></PageContainer>;
-  }
+  const { agent, dna, actions } = data;
 
   return (
     <PageContainer>
-      <div className="flex items-center gap-4 mb-2">
-        <Link to="/agents" className="p-2 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-slate-100">{agent.name}</h1>
-            <StatusBadge status={agent.status} />
+      <BackLink />
+
+      {/* Identity header */}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft text-brand">
+              <Bot className="h-6 w-6" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-[20px] font-semibold text-ink">{agent.name}</h1>
+                <StatusBadge status={agent.status} kind="lifecycle" />
+              </div>
+              <p className="mt-1 max-w-xl text-[13.5px] text-ink-soft">{agent.objective}</p>
+            </div>
           </div>
-          <p className="text-sm text-slate-400 mt-1 font-mono">Agent ID: {agent.id}</p>
+          <div className="min-w-[160px]">
+            <div className="eyebrow mb-1 text-right">Trust</div>
+            <TrustIndicator score={agent.trust_score} />
+          </div>
         </div>
-      </div>
+      </Card>
 
-      <div className="panel mb-6">
-        <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Prime Objective</p>
-        <p className="text-slate-200 text-lg italic border-l-2 border-emerald-500/50 pl-4 py-1 bg-emerald-500/5 rounded-r">
-          "{agent.objective}"
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Authority Details */}
-        <div className="panel space-y-4">
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2 mb-4">
-            <Fingerprint className="w-5 h-5 text-emerald-400" /> Identity & Authority
-          </h2>
-          
-          <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Authority */}
+        <Card>
+          <SectionHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Fingerprint className="h-[18px] w-[18px] text-brand" /> Authority
+              </span>
+            }
+          />
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <Field label="Maximum Transaction" value={formatCompactMoney(agent.max_transaction_limit)} mono />
+            <Field label="Daily Limit" value={formatCompactMoney(agent.daily_limit)} mono />
             <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Max Transaction</p>
-              <p className="font-mono text-slate-200 font-medium">{formatCurrency(agent.max_transaction_limit)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Daily Limit</p>
-              <p className="font-mono text-slate-200 font-medium">{formatCurrency(agent.daily_limit)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Allowed Actions</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {agent.allowed_actions.map(a => (
-                  <span key={a} className="px-2 py-0.5 bg-slate-800 rounded text-xs text-slate-300">{a}</span>
+              <div className="eyebrow mb-1.5">Allowed Actions</div>
+              <div className="flex flex-wrap gap-1.5">
+                {agent.allowed_actions.map((a) => (
+                  <span key={a} className="pill pill-neutral">{a}</span>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Allowed Currencies</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {agent.allowed_currencies.map(c => (
-                  <span key={c} className="px-2 py-0.5 bg-slate-800 rounded text-xs text-slate-300">{c}</span>
+              <div className="eyebrow mb-1.5">Currencies</div>
+              <div className="flex flex-wrap gap-1.5">
+                {agent.allowed_currencies.map((c) => (
+                  <span key={c} className="pill pill-neutral">{c}</span>
                 ))}
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
-        {/* Financial DNA Summary */}
-        <div className="panel space-y-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-              <Dna className="w-5 h-5 text-blue-400" /> Financial DNA
-            </h2>
-            <Link to="/financial-dna" className="text-xs text-emerald-400 hover:underline">View Full Profile</Link>
-          </div>
-          
+        {/* Financial DNA */}
+        <Card>
+          <SectionHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Dna className="h-[18px] w-[18px] text-brand" /> Financial DNA
+              </span>
+            }
+            action={
+              <Link to="/financial-dna" className="text-[12.5px] font-medium text-brand hover:underline">
+                Full profile
+              </Link>
+            }
+          />
           {dna ? (
-            <div className="space-y-4">
+            <div className="mt-4 space-y-4">
               <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Normal Amount Range</p>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-slate-300">{formatCurrency(dna.normal_amount_range[0])}</span>
-                  <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500/50 mx-[10%] w-[60%] rounded-full"></div>
-                  </div>
-                  <span className="font-mono text-slate-300">{formatCurrency(dna.normal_amount_range[1])}</span>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="eyebrow">Normal Amount Range</span>
+                  <span className="font-mono text-[12px] text-ink-soft">
+                    {formatCompactMoney(dna.normal_amount_range[0])} — {formatCompactMoney(dna.normal_amount_range[1])}
+                  </span>
                 </div>
+                <FinancialDNARange
+                  min={dna.normal_amount_range[0]}
+                  max={dna.normal_amount_range[1]}
+                  formatValue={(n) => formatCompactMoney(n)}
+                />
               </div>
-              
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-800">
-                 <div>
-                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Operating Hours</p>
-                   <p className="font-mono text-slate-300">
-                     {dna.normal_hours[0].toString().padStart(2, '0')}:00 - {dna.normal_hours[1].toString().padStart(2, '0')}:00
-                   </p>
-                 </div>
-                 <div>
-                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Known Counterparties</p>
-                   <p className="text-slate-300">{dna.known_recipients.length} vendors</p>
-                 </div>
+              <div className="grid grid-cols-2 gap-4 border-t border-line pt-3">
+                <Field label="Normal Hours" value={`${formatHour(dna.normal_hours[0])} — ${formatHour(dna.normal_hours[1])}`} mono />
+                <Field label="Known Recipients" value={String(dna.known_recipients.length)} />
+                <Field label="Avg Daily Actions" value={String(dna.typical_daily_transactions)} />
+                <Field label="Daily Exposure" value={formatCompactMoney(dna.typical_daily_exposure)} mono />
               </div>
             </div>
           ) : (
-             <div className="text-sm text-slate-500 italic py-4">No Financial DNA profile available.</div>
+            <EmptyState title="No behavioural profile yet" description="Financial DNA builds once the agent has transaction history." />
+          )}
+        </Card>
+      </div>
+
+      {/* Recent actions */}
+      <Card padded={false}>
+        <div className="p-5 pb-2">
+          <SectionHeader title="Recent Actions" />
+        </div>
+        <div className="divide-y divide-line">
+          {actions.length === 0 ? (
+            <EmptyState title="No actions yet" description="This agent has not proposed any actions." />
+          ) : (
+            actions.map((a) => <ActionRow key={a.action_id} action={a} agentName={agent.name} />)
           )}
         </div>
-      </div>
-
-      {/* Recent Actions */}
-      <div className="panel p-0 overflow-hidden">
-        <div className="p-4 border-b border-slate-800 bg-slate-900/50">
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-400" /> Recent Actions
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-900">
-              <tr className="text-slate-400 border-b border-slate-800">
-                <th className="px-6 py-4 font-medium">Action ID</th>
-                <th className="px-6 py-4 font-medium">Amount</th>
-                <th className="px-6 py-4 font-medium">Recipient</th>
-                <th className="px-6 py-4 font-medium">Time</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {actions.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No recent actions</td>
-                </tr>
-              ) : (
-                actions.map((action) => (
-                  <tr key={action.action_id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <Link to={`/actions/${action.action_id}`} className="font-mono text-emerald-400 hover:underline">
-                        {action.action_id.slice(0, 16)}...
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 font-mono">{formatCurrency(action.amount, action.currency)}</td>
-                    <td className="px-6 py-4 truncate max-w-[200px]">{action.recipient}</td>
-                    <td className="px-6 py-4 text-slate-400">{formatDate(action.created_at)}</td>
-                    <td className="px-6 py-4">
-                      <StatusBadge status={action.status} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+      </Card>
     </PageContainer>
+  );
+}
+
+function BackLink() {
+  return (
+    <Link to="/agents" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-soft hover:text-ink">
+      <ArrowLeft className="h-4 w-4" /> Agents
+    </Link>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div className="eyebrow mb-1">{label}</div>
+      <p className={`text-[14px] font-medium text-ink ${mono ? "font-mono" : ""}`}>{value}</p>
+    </div>
   );
 }

@@ -85,8 +85,7 @@ def test_placeholders_return_null_not_zero(client: TestClient) -> None:
     """
     results = evaluate(client, propose(client))["evaluation"]["engine_results"]
 
-    for name in ("cascade",
-                 "counterparty", "blast_radius"):
+    for name in ("blast_radius",):
         assert results[name]["status"] == "NOT_IMPLEMENTED"
         assert results[name]["risk_score"] is None, f"{name} invented a score"
         assert "ENGINE_NOT_IMPLEMENTED" in results[name]["flags"]
@@ -96,13 +95,13 @@ def test_coverage_is_reported_honestly(client: TestClient) -> None:
     coverage = evaluate(client, propose(client))["evaluation"]["coverage"]
 
     assert coverage["complete"] is False
-    assert set(coverage["not_implemented"]) == {
-        "cascade", "counterparty", "blast_radius",
-    }
+    assert set(coverage["not_implemented"]) == {"blast_radius"}
     assert "authority" in coverage["implemented"]
     assert "financial_dna" in coverage["implemented"]
     assert "intent" in coverage["implemented"]
     assert "anomaly" in coverage["implemented"]
+    assert "counterparty" in coverage["implemented"]
+    assert "cascade" in coverage["implemented"]
     assert coverage["errored"] == []
 
 

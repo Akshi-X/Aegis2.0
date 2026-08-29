@@ -42,13 +42,25 @@ def test_seed_creates_expected_banking_environment(
     assert accounts["company"].currency == "INR"
     assert accounts["company"].owner_type == "COMPANY"
 
-    # Ids are sequential and stable, which the documented sample requests rely on.
-    assert [accounts[k].id for k in ("company", "abc", "xyz", "unknown")] == [1, 2, 3, 4]
+    # Ids are sequential and stable, which the documented sample requests rely
+    # on. Company budget accounts occupy 1-4, counterparty accounts follow.
+    assert [accounts[k].id for k in ("company", "abc", "xyz", "unknown")] == [1, 5, 6, 7]
 
     from app.models import Agent, Counterparty
 
-    agent = db.execute(select(Agent)).scalar_one()
-    assert agent.name == "Treasury Agent"
+    agent_names = {
+        a.name for a in db.execute(select(Agent)).scalars()
+    }
+    assert agent_names == {
+        "Treasury Agent",
+        "Procurement Agent",
+        "Marketing Agent",
+        "HR Agent",
+    }
+
+    agent = db.execute(
+        select(Agent).where(Agent.name == "Treasury Agent")
+    ).scalar_one()
     assert agent.objective == "Pay legitimate company vendor invoices."
     assert agent.max_transaction_limit == Decimal("100000.00")
     assert agent.daily_limit == Decimal("500000.00")
@@ -327,9 +339,12 @@ def test_list_accounts(client: TestClient) -> None:
     assert response.status_code == 200
 
     body = response.json()
-    assert len(body) == 4
+    assert len(body) == 7
     assert [a["account_name"] for a in body] == [
         "Main Company Account",
+        "Procurement Budget",
+        "Marketing Budget",
+        "HR Budget",
         "ABC Technologies",
         "XYZ Cloud",
         "Unknown Account",

@@ -154,6 +154,65 @@ class GovernancePolicy(_Strict):
         return self
 
 
+class CounterpartyPolicy(_Strict):
+    """Counterparty-intelligence risk scores and graph thresholds."""
+
+    # Risk each finding justifies on its own, 0-100. The engine reports the max.
+    risk_unresolved_recipient: float = Field(80, ge=0, le=100)
+    risk_unverified_recipient: float = Field(55, ge=0, le=100)
+    risk_untrusted_counterparty: float = Field(75, ge=0, le=100)
+    risk_pass_through: float = Field(70, ge=0, le=100)
+    risk_rapid_forwarding: float = Field(65, ge=0, le=100)
+    risk_proximity_to_flagged: float = Field(60, ge=0, le=100)
+
+    # Money-flow graph thresholds.
+    fan_out_mule_min: int = Field(3, ge=1)
+    forwarding_ratio_min: float = Field(0.80, gt=0, le=1)
+    proximity_risk_score: float = Field(70, ge=0, le=100)
+
+    warn_at_or_above: float = Field(40, ge=0, le=100)
+    fail_at_or_above: float = Field(70, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def _check_bands(self) -> CounterpartyPolicy:
+        if self.warn_at_or_above > self.fail_at_or_above:
+            raise ValueError(
+                "counterparty.warn_at_or_above must not exceed fail_at_or_above"
+            )
+        return self
+
+
+class CascadePolicy(_Strict):
+    """Sequence-analysis windows, thresholds, and risk scores."""
+
+    burst_window_minutes: int = Field(10, gt=0)
+    velocity_window_minutes: int = Field(60, gt=0)
+    coordination_window_minutes: int = Field(15, gt=0)
+
+    rapid_repeat_count: int = Field(4, ge=2)
+    structuring_lower_ratio: float = Field(0.70, gt=0, le=1)
+    structuring_min_slices: int = Field(3, ge=2)
+    velocity_spike_factor: float = Field(4.0, gt=1)
+    velocity_min_events: int = Field(3, ge=1)
+    coordination_min_sources: int = Field(3, ge=2)
+
+    risk_rapid_repeats: float = Field(65, ge=0, le=100)
+    risk_structuring: float = Field(85, ge=0, le=100)
+    risk_velocity_spike: float = Field(60, ge=0, le=100)
+    risk_coordinated_cascade: float = Field(80, ge=0, le=100)
+
+    warn_at_or_above: float = Field(40, ge=0, le=100)
+    fail_at_or_above: float = Field(70, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def _check_bands(self) -> CascadePolicy:
+        if self.warn_at_or_above > self.fail_at_or_above:
+            raise ValueError(
+                "cascade.warn_at_or_above must not exceed fail_at_or_above"
+            )
+        return self
+
+
 class Policy(_Strict):
     """The complete, validated security policy."""
 
@@ -163,6 +222,8 @@ class Policy(_Strict):
     fusion: FusionPolicy
     trust: TrustPolicy
     governance: GovernancePolicy
+    counterparty: CounterpartyPolicy = Field(default_factory=CounterpartyPolicy)
+    cascade: CascadePolicy = Field(default_factory=CascadePolicy)
 
     @model_validator(mode="after")
     def _check_cross_section(self) -> Policy:

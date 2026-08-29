@@ -1,207 +1,175 @@
-import { useEffect, useState } from "react";
-import { Dna, BarChart3, Clock, Users, Activity } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Dna, Clock, Activity, Users, Wallet } from "lucide-react";
 import { api } from "../../services/api";
-import type { FinancialDNAProfile } from "../../types";
+import type { AgentOverview, FinancialDNAProfile } from "../../types";
+import { useAsync } from "../../hooks/useAsync";
 import { PageContainer } from "../layout/PageContainer";
-import { formatCurrency, formatDate } from "../../utils/format";
+import { Card, SectionHeader } from "../common/Card";
+import { FinancialDNARange } from "../common/FinancialDNARange";
+import { ErrorState, EmptyState } from "../common/EmptyState";
+import { Skeleton } from "../common/Skeleton";
+import { formatCompactMoney, formatHour, formatRelative } from "../../utils/format";
+import { cn } from "../../utils/cn";
 
 export function FinancialDNA() {
-  const [dna, setDna] = useState<FinancialDNAProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: agents, loading, error, reload } = useAsync<AgentOverview[]>(api.getAgents);
+  const [selected, setSelected] = useState<number | null>(null);
+  const activeId = selected ?? agents?.[0]?.id ?? null;
 
-  // In a real app we might select which agent to view, for now we hardcode agent 1 (Treasury Agent)
-  const agentId = 1;
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const data = await api.getFinancialDNA(agentId);
-        setDna(data);
-      } catch (error) {
-        console.error("Failed to load financial DNA", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [agentId]);
+  const dna = useAsync<FinancialDNAProfile | null>(
+    () => (activeId != null ? api.getFinancialDNA(activeId) : Promise.resolve(null)),
+    [activeId]
+  );
 
   if (loading) {
-    return <PageContainer><div className="text-slate-400">Loading Financial DNA...</div></PageContainer>;
-  }
-
-  if (!dna) {
     return (
       <PageContainer>
-        <div className="panel flex flex-col items-center justify-center py-12 text-slate-400">
-          <Dna className="w-12 h-12 mb-4 opacity-50" />
-          <h2 className="text-xl font-semibold text-slate-300">No DNA Profile Found</h2>
-          <p className="mt-2">The selected agent does not have enough historical data to form a Financial DNA profile.</p>
+        <Skeleton className="h-9 w-full max-w-md rounded-lg" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <Skeleton className="h-56 w-full rounded-xl" />
+          <Skeleton className="h-56 w-full rounded-xl" />
         </div>
       </PageContainer>
     );
   }
+  if (error || !agents) {
+    return (
+      <PageContainer>
+        <Card padded={false}>
+          <ErrorState message={error ?? undefined} onRetry={reload} />
+        </Card>
+      </PageContainer>
+    );
+  }
+
+  const profile = dna.data;
 
   return (
     <PageContainer>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-100 flex items-center gap-2">
-            <Dna className="w-6 h-6 text-blue-400" /> Financial DNA
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">Behavioral baseline established from historical transactions.</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-slate-500 uppercase tracking-wider">Agent</p>
-          <p className="text-sm font-medium text-slate-200">Treasury Agent (ID: {agentId})</p>
-        </div>
+      {/* Agent selector */}
+      <div className="flex flex-wrap gap-1 rounded-lg border border-line bg-surface p-1">
+        {agents.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => setSelected(a.id)}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+              activeId === a.id ? "bg-brand-soft text-brand" : "text-ink-soft hover:text-ink"
+            )}
+          >
+            {a.name}
+          </button>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Amount Baseline */}
-        <div className="panel">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 rounded-md bg-blue-500/10 text-blue-400">
-              <BarChart3 className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-slate-100">Amount Baseline</h2>
-              <p className="text-xs text-slate-400">Typical transaction sizes</p>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-400">Lower Bound</span>
-                <span className="font-mono text-slate-200">{formatCurrency(dna.normal_amount_range[0])}</span>
-              </div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-400">Upper Bound</span>
-                <span className="font-mono text-slate-200">{formatCurrency(dna.normal_amount_range[1])}</span>
-              </div>
-            </div>
-            
-            <div className="pt-4 border-t border-slate-800">
-              <p className="text-xs text-slate-500 mb-2">Visual Range</p>
-              <div className="relative h-4 bg-slate-800 rounded-full overflow-hidden flex">
-                <div className="w-[10%] bg-rose-500/20" title="Unusually low"></div>
-                <div className="w-[60%] bg-blue-500/50" title="Normal range"></div>
-                <div className="w-[30%] bg-rose-500/20" title="Unusually high"></div>
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
-                <span>0</span>
-                <span>{formatCurrency(dna.normal_amount_range[0])}</span>
-                <span>{formatCurrency(dna.normal_amount_range[1])}</span>
-                <span>Max</span>
-              </div>
-            </div>
-          </div>
+      {dna.loading ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <Skeleton className="h-56 w-full rounded-xl" />
+          <Skeleton className="h-56 w-full rounded-xl" />
         </div>
-
-        {/* Temporal Baseline */}
-        <div className="panel">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 rounded-md bg-amber-500/10 text-amber-400">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-slate-100">Temporal Baseline</h2>
-              <p className="text-xs text-slate-400">Typical operating hours</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-between mb-8">
-            <div className="text-center">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Start Time</p>
-              <p className="font-mono text-2xl text-slate-200">{dna.normal_hours[0].toString().padStart(2, '0')}:00</p>
-            </div>
-            <div className="flex-1 px-4 flex items-center justify-center">
-              <div className="h-0.5 w-full bg-slate-700 relative">
-                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-2 bg-slate-900 text-xs text-slate-500">to</div>
+      ) : !profile ? (
+        <Card padded={false}>
+          <EmptyState
+            icon={<Dna className="h-5 w-5" />}
+            title="No behavioural profile yet"
+            description="This agent has insufficient transaction history to form a Financial DNA baseline."
+          />
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {/* Amount */}
+            <Card>
+              <SectionHeader
+                title={<span className="flex items-center gap-2"><Wallet className="h-[18px] w-[18px] text-brand" /> Normal Transaction Range</span>}
+              />
+              <div className="mt-5">
+                <div className="mb-1 text-[28px] font-semibold tracking-tight text-ink">
+                  {formatCompactMoney((profile.normal_amount_range[0] + profile.normal_amount_range[1]) / 2)}
+                </div>
+                <p className="mb-5 text-[12.5px] text-ink-muted">Typical transaction size</p>
+                <FinancialDNARange
+                  min={profile.normal_amount_range[0]}
+                  max={profile.normal_amount_range[1]}
+                  formatValue={(n) => formatCompactMoney(n)}
+                />
               </div>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">End Time</p>
-              <p className="font-mono text-2xl text-slate-200">{dna.normal_hours[1].toString().padStart(2, '0')}:00</p>
-            </div>
+            </Card>
+
+            {/* Hours */}
+            <Card>
+              <SectionHeader
+                title={<span className="flex items-center gap-2"><Clock className="h-[18px] w-[18px] text-brand" /> Normal Operating Hours</span>}
+              />
+              <div className="mt-5">
+                <div className="mb-1 font-mono text-[28px] font-semibold tracking-tight text-ink">
+                  {formatHour(profile.normal_hours[0])} — {formatHour(profile.normal_hours[1])}
+                </div>
+                <p className="mb-5 text-[12.5px] text-ink-muted">When this agent normally operates</p>
+                <div className="flex gap-[3px]">
+                  {Array.from({ length: 24 }).map((_, h) => {
+                    const active = h >= profile.normal_hours[0] && h <= profile.normal_hours[1];
+                    return (
+                      <div
+                        key={h}
+                        title={`${formatHour(h)}`}
+                        className={cn("h-8 flex-1 rounded-sm", active ? "bg-brand" : "bg-line")}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="mt-1.5 flex justify-between font-mono text-[10px] text-ink-muted">
+                  <span>00:00</span>
+                  <span>12:00</span>
+                  <span>23:59</span>
+                </div>
+              </div>
+            </Card>
           </div>
 
-          <div className="pt-4 border-t border-slate-800">
-             <div className="flex gap-1 h-8">
-               {Array.from({ length: 24 }).map((_, i) => (
-                 <div 
-                   key={i} 
-                   className={`flex-1 rounded-sm ${i >= dna.normal_hours[0] && i <= dna.normal_hours[1] ? 'bg-amber-500/50' : 'bg-slate-800'}`}
-                   title={`${i.toString().padStart(2, '0')}:00`}
-                 />
-               ))}
-             </div>
-             <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
-                <span>00:00</span>
-                <span>12:00</span>
-                <span>23:59</span>
-             </div>
+          {/* Stats */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCard icon={<Activity className="h-[18px] w-[18px]" />} label="Transaction Frequency" value={`${profile.typical_daily_transactions} / day`} />
+            <StatCard icon={<Wallet className="h-[18px] w-[18px]" />} label="Daily Exposure" value={formatCompactMoney(profile.typical_daily_exposure)} />
+            <StatCard icon={<Users className="h-[18px] w-[18px]" />} label="Known Recipients" value={String(profile.known_recipients.length)} />
           </div>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        {/* Frequency */}
-        <div className="panel flex flex-col justify-center">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-md bg-emerald-500/10 text-emerald-400">
-              <Activity className="w-5 h-5" />
-            </div>
-            <h2 className="text-sm font-semibold text-slate-100">Daily Frequency</h2>
-          </div>
-          <p className="text-3xl font-bold text-slate-200 font-mono mb-1">{dna.typical_daily_transactions.toFixed(1)}</p>
-          <p className="text-xs text-slate-500">transactions per day</p>
-        </div>
-
-        {/* Exposure */}
-        <div className="panel flex flex-col justify-center">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-md bg-emerald-500/10 text-emerald-400">
-              <BarChart3 className="w-5 h-5" />
-            </div>
-            <h2 className="text-sm font-semibold text-slate-100">Daily Exposure</h2>
-          </div>
-          <p className="text-2xl font-bold text-slate-200 font-mono mb-1">{formatCurrency(dna.typical_daily_exposure)}</p>
-          <p className="text-xs text-slate-500">average daily volume</p>
-        </div>
-
-        {/* Recipients */}
-        <div className="panel flex flex-col justify-center">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-md bg-purple-500/10 text-purple-400">
-              <Users className="w-5 h-5" />
-            </div>
-            <h2 className="text-sm font-semibold text-slate-100">Known Network</h2>
-          </div>
-          <p className="text-3xl font-bold text-slate-200 font-mono mb-1">{dna.known_recipients.length}</p>
-          <p className="text-xs text-slate-500">trusted counterparties</p>
-        </div>
-      </div>
-
-      {/* Recipient List */}
-      <div className="panel">
-        <h2 className="text-lg font-semibold text-slate-100 mb-4">Trusted Counterparties</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {dna.known_recipients.map(recipient => (
-            <div key={recipient} className="p-3 bg-slate-950 border border-slate-800 rounded-md flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-medium">
-                {recipient.charAt(0).toUpperCase()}
+          {/* Recipients */}
+          <Card>
+            <SectionHeader title="Known Recipients" subtitle="Counterparties this agent normally pays" />
+            {profile.known_recipients.length === 0 ? (
+              <p className="mt-4 text-[13px] text-ink-muted">No recipients on record.</p>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {profile.known_recipients.map((r) => (
+                  <div key={r} className="flex items-center gap-3 rounded-lg border border-line bg-canvas px-3 py-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-[12px] font-semibold text-brand">
+                      {r.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="truncate text-[13px] font-medium text-ink">{r}</span>
+                  </div>
+                ))}
               </div>
-              <span className="text-sm text-slate-300 truncate">{recipient}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      <div className="mt-6 flex justify-end">
-         <p className="text-xs text-slate-500">Profile last updated: {formatDate(dna.last_updated)}</p>
-      </div>
+            )}
+          </Card>
+
+          <p className="text-right text-[12px] text-ink-muted">
+            Profile updated {formatRelative(profile.last_updated)}
+          </p>
+        </>
+      )}
     </PageContainer>
+  );
+}
+
+function StatCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="card p-4">
+      <div className="flex items-center gap-2 text-ink-muted">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-brand">{icon}</span>
+        <span className="text-[12.5px] font-medium text-ink-soft">{label}</span>
+      </div>
+      <p className="mt-2 font-mono text-[22px] font-semibold text-ink">{value}</p>
+    </div>
   );
 }

@@ -13,8 +13,10 @@ from app.services.engines.intent import IntentService
 
 @pytest.fixture
 def test_agent(db: Session) -> Agent:
+    # Name must not collide with a seeded agent -- agents.name is UNIQUE, and
+    # the seed already creates Treasury/Procurement/Marketing/HR agents.
     agent = Agent(
-        name="Procurement Agent",
+        name="Intent Test Agent",
         objective="Purchase office supplies and pay vendor invoices for hardware.",
         status="ACTIVE",
     )

@@ -1,14 +1,8 @@
-import type {
-  ActionEvaluation,
-  ActionProposal,
-  AgentOverview,
-  EvaluationResponse,
-  FinancialDNAProfile,
-} from "../types";
+/** Low-level HTTP client. Domain modules (agents/actions/dashboard) build on this. */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+export async function http<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -21,44 +15,35 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     const errorBody = await response.json().catch(() => ({}));
     throw new Error(errorBody?.detail?.message || `API error: ${response.status}`);
   }
-
   return response.json();
 }
 
+import type {
+  ActionEvaluation,
+  ActionProposal,
+  AgentOverview,
+  DashboardMetrics,
+  EvaluationResponse,
+  FinancialDNAProfile,
+} from "../types";
+
+/** Flat facade kept for back-compat with existing imports. */
 export const api = {
-  // Real endpoints
-  async getActions(): Promise<ActionProposal[]> {
-    return fetchApi<ActionProposal[]>("/actions");
+  getActions: (params?: { status?: string; agent_id?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.agent_id != null) q.set("agent_id", String(params.agent_id));
+    const qs = q.toString();
+    return http<ActionProposal[]>(`/actions${qs ? `?${qs}` : ""}`);
   },
-
-  async getAction(id: string): Promise<ActionProposal> {
-    return fetchApi<ActionProposal>(`/actions/${id}`);
-  },
-
-  async evaluateAction(id: string): Promise<EvaluationResponse> {
-    return fetchApi<EvaluationResponse>(`/actions/${id}/evaluate`, {
-      method: "POST",
-    });
-  },
-
-  async getActionEvaluations(id: string): Promise<ActionEvaluation[]> {
-    return fetchApi<ActionEvaluation[]>(`/actions/${id}/evaluations`);
-  },
-
-  async getFinancialDNA(agentId: number): Promise<FinancialDNAProfile> {
-    return fetchApi<FinancialDNAProfile>(`/agent/${agentId}/financial-dna`);
-  },
-
-  // Abstracted/Mocked endpoints for missing backend features
-  async getAgents(): Promise<AgentOverview[]> {
-    return fetchApi<AgentOverview[]>("/agent");
-  },
-
-  async getAgent(id: number): Promise<AgentOverview> {
-    return fetchApi<AgentOverview>(`/agent/${id}`);
-  },
-
-  async getDashboardMetrics(): Promise<any> {
-    return fetchApi<any>("/agent/metrics");
-  },
+  getAction: (id: string) => http<ActionProposal>(`/actions/${id}`),
+  evaluateAction: (id: string) =>
+    http<EvaluationResponse>(`/actions/${id}/evaluate`, { method: "POST" }),
+  getActionEvaluations: (id: string) =>
+    http<ActionEvaluation[]>(`/actions/${id}/evaluations`),
+  getFinancialDNA: (agentId: number) =>
+    http<FinancialDNAProfile>(`/agent/${agentId}/financial-dna`),
+  getAgents: () => http<AgentOverview[]>("/agent"),
+  getAgent: (id: number) => http<AgentOverview>(`/agent/${id}`),
+  getDashboardMetrics: () => http<DashboardMetrics>("/agent/metrics"),
 };

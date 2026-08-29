@@ -6,7 +6,9 @@ import { AgentDetails } from "./components/agents/AgentDetails";
 import { ActionList } from "./components/actions/ActionList";
 import { ActionInvestigation } from "./components/actions/ActionInvestigation";
 import { FinancialDNA } from "./components/financial-dna/FinancialDNA";
+import { SecurityOverview } from "./components/security/SecurityOverview";
 import { Reviews } from "./components/reviews/Reviews";
+import { AuditLog } from "./components/audit/AuditLog";
 
 function App() {
   return (
@@ -19,7 +21,9 @@ function App() {
           <Route path="/actions" element={<ActionList />} />
           <Route path="/actions/:id" element={<ActionInvestigation />} />
           <Route path="/financial-dna" element={<FinancialDNA />} />
+          <Route path="/security" element={<SecurityOverview />} />
           <Route path="/reviews" element={<Reviews />} />
+          <Route path="/audit" element={<AuditLog />} />
         </Route>
       </Routes>
     </BrowserRouter>

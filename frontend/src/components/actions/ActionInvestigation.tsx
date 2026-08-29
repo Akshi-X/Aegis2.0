@@ -1,353 +1,263 @@
-import { useEffect, useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Play, ServerCrash, Shield, Fingerprint, BrainCircuit, Users2, Dna, Network, Zap, CheckCircle2, ShieldAlert, Activity } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Play,
+  RefreshCw,
+  Fingerprint,
+  BrainCircuit,
+  Dna,
+  Activity,
+  Network,
+  Users2,
+  Zap,
+  CheckCircle2,
+  ShieldAlert,
+} from "lucide-react";
 import { api } from "../../services/api";
-import type { EvaluationResponse } from "../../types";
+import type { ActionEvaluation, ActionProposal, EngineResult } from "../../types";
+import { useAsync } from "../../hooks/useAsync";
 import { PageContainer } from "../layout/PageContainer";
-import { formatCurrency, formatDate } from "../../utils/format";
-import { StatusBadge } from "../common/Badge";
+import { Card, SectionHeader } from "../common/Card";
+import { StatusBadge, Pill } from "../common/Badge";
 import { SecurityEngineCard } from "../common/SecurityEngineCard";
-import { cn } from "../../utils/cn";
+import { ErrorState } from "../common/EmptyState";
+import { Skeleton } from "../common/Skeleton";
+import { decisionTone, riskBand, toneToHex } from "../../utils/status";
+import { formatMoney, formatDate } from "../../utils/format";
+
+/** Ordered pipeline metadata — the engines AEGIS-X actually runs. */
+const PIPELINE: { key: string; title: string; description: string; icon: ReactNode }[] = [
+  { key: "authority", title: "Identity & Authority", description: "Validates agent capabilities, constraints, and daily limits.", icon: <Fingerprint className="h-[18px] w-[18px]" /> },
+  { key: "intent", title: "Intent Alignment", description: "Analyses objective drift and prompt manipulation.", icon: <BrainCircuit className="h-[18px] w-[18px]" /> },
+  { key: "financial_dna", title: "Financial DNA", description: "Compares against the agent's behavioural baseline.", icon: <Dna className="h-[18px] w-[18px]" /> },
+  { key: "anomaly", title: "ML Anomaly Engine", description: "Isolation Forest multi-dimensional outlier detection.", icon: <Activity className="h-[18px] w-[18px]" /> },
+  { key: "cascade", title: "Cascade Detection", description: "Detects structuring and coordinated sequences.", icon: <Network className="h-[18px] w-[18px]" /> },
+  { key: "counterparty", title: "Counterparty Intelligence", description: "Graph analysis of the recipient's money-flow.", icon: <Users2 className="h-[18px] w-[18px]" /> },
+  { key: "blast_radius", title: "Blast Radius", description: "Estimates downstream financial impact.", icon: <Zap className="h-[18px] w-[18px]" /> },
+];
 
 export function ActionInvestigation() {
   const { id } = useParams<{ id: string }>();
-  const [data, setData] = useState<EvaluationResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [evaluating, setEvaluating] = useState(false);
-  const [visibleEngines, setVisibleEngines] = useState<string[]>([]);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [finalDecisionVisible, setFinalDecisionVisible] = useState(false);
+  const [override, setOverride] = useState<{ proposal: ActionProposal; evaluation: ActionEvaluation | null } | null>(null);
 
-  async function loadData() {
-    if (!id) return;
-    try {
-      setLoading(true);
-      setError(null);
-      // Try to get latest evaluation if it has one, else just the proposal
-      const [proposal, evals] = await Promise.all([
-        api.getAction(id),
-        api.getActionEvaluations(id).catch(() => [])
-      ]);
-      
-      if (evals && evals.length > 0) {
-        setData({ proposal, evaluation: evals[0] });
-        setVisibleEngines(["authority", "financial_dna", "anomaly", "intent", "counterparty", "cascade", "governance"]);
-        setFinalDecisionVisible(true);
-      } else {
-        setData({ proposal, evaluation: null as any }); // not evaluated yet
-        setVisibleEngines([]);
-        setFinalDecisionVisible(false);
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to load action details");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadData();
+  const { data, loading, error, reload } = useAsync(async () => {
+    const [proposal, evals] = await Promise.all([
+      api.getAction(id!),
+      api.getActionEvaluations(id!).catch(() => [] as ActionEvaluation[]),
+    ]);
+    return { proposal, evaluation: evals[0] ?? null };
   }, [id]);
 
-  const handleEvaluate = async () => {
+  const view = override ?? data;
+
+  async function runEvaluation() {
     if (!id) return;
+    setEvaluating(true);
     try {
-      setEvaluating(true);
-      setIsSimulating(true);
-      setVisibleEngines([]);
-      setFinalDecisionVisible(false);
-      
-      const result = await api.evaluateAction(id);
-      setData(result);
-      
-      // Simulate sequential engine processing for visual impact
-      const engineSequence = ["authority", "financial_dna", "anomaly", "intent", "counterparty", "cascade", "governance"];
-      
-      for (let i = 0; i < engineSequence.length; i++) {
-        await new Promise(r => setTimeout(r, 600)); // 600ms processing time per engine
-        setVisibleEngines(prev => [...prev, engineSequence[i]]);
-      }
-      
-      await new Promise(r => setTimeout(r, 800));
-      setFinalDecisionVisible(true);
-      
-    } catch (err: any) {
-      alert("Evaluation failed: " + err.message);
-      setVisibleEngines(["authority", "financial_dna", "anomaly", "intent", "counterparty", "cascade", "governance"]);
-      setFinalDecisionVisible(true);
+      const res = await api.evaluateAction(id);
+      setOverride({ proposal: res.proposal, evaluation: res.evaluation });
+    } catch (e: any) {
+      alert("Evaluation failed: " + e.message);
     } finally {
       setEvaluating(false);
-      setIsSimulating(false);
     }
-  };
+  }
 
   if (loading) {
-    return <PageContainer><div className="text-slate-400">Loading investigation data...</div></PageContainer>;
-  }
-
-  if (error || !data) {
     return (
       <PageContainer>
-        <div className="panel bg-rose-500/10 border-rose-500/20 text-rose-400">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <ServerCrash className="w-5 h-5" /> Error
-          </h2>
-          <p className="mt-2">{error}</p>
-          <Link to="/actions" className="mt-4 inline-block text-sm text-slate-300 hover:text-white underline">
-            Return to Actions
-          </Link>
-        </div>
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </PageContainer>
+    );
+  }
+  if (error || !view) {
+    return (
+      <PageContainer>
+        <BackLink />
+        <Card padded={false}>
+          <ErrorState message={error ?? "Action not found."} onRetry={reload} />
+        </Card>
       </PageContainer>
     );
   }
 
-  const { proposal, evaluation } = data;
-  const isEvaluated = !!evaluation;
-  const decisionColor = evaluation?.decision === "EXECUTE" 
-    ? "text-emerald-400" 
-    : evaluation?.decision === "BLOCK" 
-      ? "text-rose-400" 
-      : "text-amber-400";
+  const { proposal, evaluation } = view;
+  const engines: Record<string, EngineResult> = evaluation?.engine_results ?? {};
 
-  try {
-    return (
-      <PageContainer>
-        {/* Header */}
-      <div className="flex items-center gap-4 mb-2">
-        <Link to="/actions" className="p-2 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-slate-100 font-mono">{proposal.action_id}</h1>
-            <StatusBadge status={proposal.status} />
-          </div>
-          <p className="text-sm text-slate-400 mt-1">Proposed at {formatDate(proposal.created_at)}</p>
-        </div>
-        
-        <div className="ml-auto">
-          {!isEvaluated ? (
-            <button 
-              onClick={handleEvaluate}
-              disabled={evaluating}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-md font-medium transition-colors"
-            >
-              {evaluating ? "Evaluating..." : <><Play className="w-4 h-4 fill-current" /> Run Evaluation</>}
-            </button>
+  return (
+    <PageContainer>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <BackLink />
+        <button className="btn btn-primary btn-md" onClick={runEvaluation} disabled={evaluating}>
+          {evaluating ? (
+            <><RefreshCw className="h-4 w-4 animate-spin" /> Evaluating…</>
+          ) : evaluation ? (
+            <><RefreshCw className="h-4 w-4" /> Re-evaluate</>
           ) : (
-            <button 
-              onClick={handleEvaluate}
-              disabled={evaluating}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md font-medium transition-colors border border-slate-700"
-            >
-              {evaluating ? "Re-evaluating..." : <><Play className="w-4 h-4" /> Re-evaluate</>}
+            <><Play className="h-4 w-4" /> Run Evaluation</>
+          )}
+        </button>
+      </div>
+
+      {/* Summary */}
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Pill tone="neutral">{proposal.action_type}</Pill>
+            <span className="font-mono text-[22px] font-semibold text-ink">
+              {formatMoney(proposal.amount, proposal.currency)}
+            </span>
+            <div className="flex items-center gap-2 text-[14px] text-ink-soft">
+              <span className="font-medium text-ink">{proposal.source_account?.account_name ?? `Agent #${proposal.agent_id}`}</span>
+              <ArrowRight className="h-4 w-4 text-ink-muted" />
+              <span className="font-medium text-ink">{proposal.recipient}</span>
+              {proposal.recipient_known ? (
+                <CheckCircle2 className="h-4 w-4 text-[var(--color-success)]" />
+              ) : (
+                <ShieldAlert className="h-4 w-4 text-[var(--color-warning)]" />
+              )}
+            </div>
+          </div>
+          <StatusBadge status={proposal.status} />
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4 md:grid-cols-4">
+          <Meta label="Agent">
+            <Link to={`/agents/${proposal.agent_id}`} className="font-medium text-brand hover:underline">
+              {proposal.source_account?.account_name ?? `Agent #${proposal.agent_id}`}
+            </Link>
+          </Meta>
+          <Meta label="Recipient Account">
+            <span className="font-mono text-[13px] text-ink">{proposal.recipient_account_number ?? "—"}</span>
+          </Meta>
+          <Meta label="Proposed">
+            <span className="text-[13px] text-ink">{formatDate(proposal.created_at)}</span>
+          </Meta>
+          <Meta label="Purpose">
+            <span className="text-[13px] text-ink">{proposal.purpose || "—"}</span>
+          </Meta>
+        </div>
+      </Card>
+
+      {!evaluation ? (
+        <Card>
+          <div className="flex flex-col items-center py-10 text-center">
+            <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft text-brand">
+              <Play className="h-5 w-5" />
+            </span>
+            <p className="text-[14px] font-semibold text-ink">Not yet evaluated</p>
+            <p className="mt-1 max-w-sm text-[13px] text-ink-muted">
+              Run the AEGIS-X security pipeline to assess this action. No funds move — a decision is recorded, not executed.
+            </p>
+            <button className="btn btn-primary btn-md mt-4" onClick={runEvaluation} disabled={evaluating}>
+              <Play className="h-4 w-4" /> Run Evaluation
             </button>
-          )}
-        </div>
-      </div>
-
-      {/* Primary Details Panel */}
-      <div className="panel grid grid-cols-2 md:grid-cols-4 gap-6">
-        <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Agent</p>
-          <Link to={`/agents/${proposal.agent_id}`} className="font-medium text-slate-200 hover:text-emerald-400 hover:underline">
-            Agent #{proposal.agent_id}
-          </Link>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Amount</p>
-          <p className="font-mono text-lg font-semibold text-slate-200">
-            {formatCurrency(proposal.amount, proposal.currency)}
-          </p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Recipient</p>
-          <div className="flex items-center gap-2">
-            <p className="font-medium text-slate-200 truncate">{proposal.recipient}</p>
-            {proposal.recipient_known ? (
-              <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                <CheckCircle2 className="w-3 h-3" /> Known
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                <ShieldAlert className="w-3 h-3" /> Unknown
-              </span>
-            )}
           </div>
-          {proposal.recipient_account_number && (
-            <p className="text-xs font-mono text-slate-500 mt-1">Acct: {proposal.recipient_account_number}</p>
-          )}
-        </div>
-        <div className="col-span-4 pt-4 border-t border-slate-800">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Purpose / Context</p>
-          <p className="text-sm text-slate-300 italic">"{proposal.purpose}"</p>
-        </div>
-      </div>
+        </Card>
+      ) : (
+        <>
+          <DecisionBanner evaluation={evaluation} />
 
-      {isEvaluated && (
-        <div className="mt-8 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-emerald-400" /> Security Pipeline
-              {isSimulating && <span className="ml-2 text-xs bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded animate-pulse">PROCESSING...</span>}
-            </h2>
-            
-            {finalDecisionVisible && (
-              <div className="flex items-center gap-3 animate-in fade-in zoom-in duration-500">
-                <span className="text-sm text-slate-400">Final Decision:</span>
-                <span className={cn("text-xl font-bold tracking-widest", decisionColor)}>
-                  {evaluation.decision}
-                </span>
-              </div>
-            )}
-          </div>
-          
-          {/* Timeline Wrapper */}
-          <div className="relative border-l border-slate-800 ml-4 pl-8 py-2 space-y-8">
-            
-            <div className="absolute top-0 -left-1.5 w-3 h-3 rounded-full bg-slate-700" />
-            <div className="absolute bottom-0 -left-1.5 w-3 h-3 rounded-full bg-slate-700" />
-            
-            {/* Identity & Authority */}
-            {(visibleEngines.includes("authority") || isSimulating) && (
-              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
-                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-                <SecurityEngineCard 
-                  engineName="Identity & Authority" 
-                  description="Validates agent capabilities, constraints, and daily limits."
-                  icon={<Fingerprint className="w-5 h-5" />}
-                  result={visibleEngines.includes("authority") ? evaluation.engine_results["authority"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
-                >
-                  {visibleEngines.includes("authority") && evaluation.engine_results["authority"]?.status === "PASS" && (
-                     <p className="text-xs text-slate-400 mt-2">Limits verified. Daily spend within boundaries.</p>
-                  )}
-                </SecurityEngineCard>
-              </div>
-            )}
-
-            {/* Financial DNA */}
-            {(visibleEngines.includes("financial_dna") || (isSimulating && visibleEngines.includes("authority"))) && (
-              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
-                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-                <SecurityEngineCard 
-                  engineName="Financial DNA" 
-                  description="Checks historical deviation of amount, time, and recipient using heuristics."
-                  icon={<Dna className="w-5 h-5" />}
-                  result={visibleEngines.includes("financial_dna") ? evaluation.engine_results["financial_dna"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
-                >
-                  {visibleEngines.includes("financial_dna") && evaluation.engine_results["financial_dna"]?.status === "PASS" && (
-                     <p className="text-xs text-slate-400 mt-2">Transaction matches established behavioural baseline.</p>
-                  )}
-                </SecurityEngineCard>
-              </div>
-            )}
-
-            {/* Behavioural Anomaly ML Model */}
-            {(visibleEngines.includes("anomaly") || (isSimulating && visibleEngines.includes("financial_dna"))) && (
-              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
-                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-                <SecurityEngineCard 
-                  engineName="Machine Learning Anomaly Engine" 
-                  description="Unsupervised Isolation Forest model detecting multi-dimensional outliers."
-                  icon={<Activity className="w-5 h-5" />}
-                  result={visibleEngines.includes("anomaly") ? evaluation.engine_results["anomaly"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
-                >
-                  {visibleEngines.includes("anomaly") && evaluation.engine_results["anomaly"]?.status === "PASS" && (
-                     <p className="text-xs text-slate-400 mt-2">No latent behavioural anomalies detected by ML.</p>
-                  )}
-                </SecurityEngineCard>
-              </div>
-            )}
-
-            {/* Intent Alignment */}
-            {(visibleEngines.includes("intent") || (isSimulating && visibleEngines.includes("anomaly"))) && (
-              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
-                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-                <SecurityEngineCard 
-                  engineName="Intent Alignment" 
-                  description="AI-driven analysis of agent prompt manipulation and objective drift."
-                  icon={<BrainCircuit className="w-5 h-5" />}
-                  result={visibleEngines.includes("intent") ? evaluation.engine_results["intent"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
-                />
-              </div>
-            )}
-            
-            {/* Counterparty Intelligence */}
-            {(visibleEngines.includes("counterparty") || (isSimulating && visibleEngines.includes("intent"))) && (
-              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
-                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-                <SecurityEngineCard 
-                  engineName="Counterparty Intelligence" 
-                  description="External risk enrichment and entity resolution for the recipient."
-                  icon={<Users2 className="w-5 h-5" />}
-                  result={visibleEngines.includes("counterparty") ? evaluation.engine_results["counterparty"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
-                />
-              </div>
-            )}
-
-            {/* Cascade Detection */}
-            {(visibleEngines.includes("cascade") || (isSimulating && visibleEngines.includes("counterparty"))) && (
-              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
-                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-                <SecurityEngineCard 
-                  engineName="Cascade Detection" 
-                  description="Detects multi-agent coordinated attacks and structured movements."
-                  icon={<Network className="w-5 h-5" />}
-                  result={visibleEngines.includes("cascade") ? evaluation.engine_results["cascade"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
-                />
-              </div>
-            )}
-            
-            {/* Risk Fusion */}
-            {(visibleEngines.includes("governance") || (isSimulating && visibleEngines.includes("cascade"))) && (
-              <div className="relative animate-in fade-in slide-in-from-left-4 duration-500">
-                <div className="absolute top-4 -left-[41px] w-4 h-0.5 bg-slate-800" />
-                <SecurityEngineCard 
-                  engineName="Risk Fusion & Governance" 
-                  description="Synthesizes all signals and makes the final execution decision."
-                  icon={<Zap className="w-5 h-5" />}
-                  result={visibleEngines.includes("governance") ? evaluation.engine_results["governance"] : { status: "PROCESSING", risk_score: null, flags: [], details: {} } as any}
-                >
-                  {visibleEngines.includes("governance") && (
-                     <div className="flex items-center gap-4 mt-2">
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase">Provisional</p>
-                          <p className="text-sm font-mono text-slate-300">{evaluation.provisional ? "TRUE" : "FALSE"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase">Coverage</p>
-                          <p className="text-sm font-mono text-slate-300">
-                            {evaluation.coverage.implemented.length} / {evaluation.coverage.implemented.length + evaluation.coverage.not_implemented.length}
+          <div>
+            <SectionHeader title="Security Evaluation" subtitle={`${evaluation.engines_run} engines · ${evaluation.latency_ms.toFixed(0)}ms · coverage ${evaluation.coverage.implemented.length}/${evaluation.coverage.engines_total}`} />
+            <div className="relative mt-4 space-y-3 border-l border-line pl-6">
+              {PIPELINE.map((engine) => {
+                const engineResult = engines[engine.key];
+                return (
+                  <div key={engine.key} className="relative">
+                    <span className="absolute -left-[27px] top-4 h-2 w-2 rounded-full bg-line-strong ring-4 ring-canvas" />
+                    <SecurityEngineCard
+                      engineName={engine.title}
+                      description={engine.description}
+                      icon={engine.icon}
+                      result={engineResult}
+                    >
+                      {engine.key === "intent" && engineResult?.details?.gemini_reasoning && (
+                        <div className="mt-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-3">
+                          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-indigo-400">
+                            <BrainCircuit className="h-3.5 w-3.5" /> Gemini AI Reasoning
+                          </div>
+                          <p className="text-[13px] leading-relaxed text-ink-soft">
+                            {engineResult.details.gemini_reasoning}
                           </p>
                         </div>
-                     </div>
-                  )}
-                </SecurityEngineCard>
-              </div>
-            )}
-
+                      )}
+                    </SecurityEngineCard>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </PageContainer>
-    );
-  } catch (renderError: any) {
-    return (
-      <PageContainer>
-        <div className="panel bg-rose-500/10 border-rose-500/20 text-rose-400">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <ServerCrash className="w-5 h-5" /> Render Error
-          </h2>
-          <p className="mt-2 text-sm font-mono whitespace-pre-wrap">{renderError.stack || renderError.message}</p>
-          <pre className="mt-4 p-4 bg-slate-900 rounded overflow-auto text-xs text-slate-300">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-          <button onClick={() => window.location.reload()} className="mt-4 inline-block text-sm text-slate-300 hover:text-white underline">
-            Reload Page
-          </button>
+  );
+}
+
+function DecisionBanner({ evaluation }: { evaluation: ActionEvaluation }) {
+  const tone = decisionTone(evaluation.decision);
+  const accent = toneToHex[tone];
+  const band = riskBand(evaluation.overall_risk_score);
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-xl"
+            style={{ background: `${accent}14`, color: accent }}
+          >
+            <Zap className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="eyebrow">Governance Decision</div>
+            <div className="flex items-center gap-2">
+              <span className="text-[22px] font-semibold tracking-tight" style={{ color: accent }}>
+                {evaluation.decision}
+              </span>
+              {evaluation.provisional && <Pill tone="warning">Provisional</Pill>}
+            </div>
+          </div>
         </div>
-      </PageContainer>
-    );
-  }
+        <div className="flex items-center gap-6">
+          <Stat label="Overall Risk" value={evaluation.overall_risk_score != null ? evaluation.overall_risk_score.toFixed(1) : "—"} sub={band.label} />
+          <Stat label="Trust" value={evaluation.trust_score_at_evaluation != null ? evaluation.trust_score_at_evaluation.toFixed(0) : "—"} />
+          <Stat label="Coverage" value={`${evaluation.coverage.implemented.length}/${evaluation.coverage.engines_total}`} />
+        </div>
+      </div>
+      {evaluation.decision_reason && (
+        <p className="mt-3 border-t border-line pt-3 text-[13px] text-ink-soft">{evaluation.decision_reason}</p>
+      )}
+    </Card>
+  );
+}
+
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="text-right">
+      <div className="eyebrow">{label}</div>
+      <div className="font-mono text-[18px] font-semibold text-ink">{value}</div>
+      {sub && <div className="text-[11px] text-ink-muted">{sub}</div>}
+    </div>
+  );
+}
+
+function Meta({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <div className="eyebrow mb-1">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function BackLink() {
+  return (
+    <Link to="/actions" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-soft hover:text-ink">
+      <ArrowLeft className="h-4 w-4" /> Actions
+    </Link>
+  );
 }

@@ -1,6 +1,26 @@
-export type ActionType = "TRANSFER";
-export type ProposalStatus = "PROPOSED" | "EVALUATED";
-export type EngineStatus = "PASS" | "WARN" | "FAIL" | "ERROR" | "NOT_IMPLEMENTED";
+export type ActionType = "TRANSFER" | "PAYMENT";
+export type ProposalStatus =
+  | "PROPOSED"
+  | "EVALUATED"
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "REJECTED"
+  | "EXECUTED"
+  | "BLOCKED"
+  | "FAILED";
+export type EngineStatus =
+  | "PASS"
+  | "WARN"
+  | "FAIL"
+  | "ERROR"
+  | "NOT_IMPLEMENTED"
+  | "PROCESSING";
+export type GovernanceDecision =
+  | "EXECUTE"
+  | "CONSTRAIN"
+  | "DELAY"
+  | "BLOCK"
+  | "ESCALATE";
 
 export interface SourceAccountRef {
   id: number;
@@ -31,21 +51,38 @@ export interface EngineResult {
   details: Record<string, any>;
 }
 
+export interface CoverageReport {
+  engines_total: number;
+  engines_implemented: number;
+  implemented: string[];
+  not_implemented: string[];
+  errored: string[];
+  complete: boolean;
+}
+
+export interface RiskFactor {
+  engine: string;
+  risk_score: number | null;
+  status: string;
+  flags: string[];
+}
+
 export interface ActionEvaluation {
   evaluation_id: string;
-  action_id: string;
-  decision: "EXECUTE" | "BLOCK" | "ESCALATE";
+  proposal_id: number;
+  agent_id: number;
+  decision: GovernanceDecision;
+  decision_reason: string;
   provisional: boolean;
+  overall_risk_score: number | null;
+  trust_score_at_evaluation: number | null;
   engines_run: number;
   engine_results: Record<string, EngineResult>;
-  coverage: {
-    complete: boolean;
-    implemented: string[];
-    not_implemented: string[];
-    errored: string[];
-  };
+  coverage: CoverageReport;
+  fusion_detail: Record<string, any>;
+  top_factors: RiskFactor[];
   latency_ms: number;
-  timestamp: string;
+  created_at: string;
 }
 
 export interface EvaluationResponse {
@@ -63,7 +100,6 @@ export interface FinancialDNAProfile {
   last_updated: string;
 }
 
-// Frontend specific abstractions
 export interface AgentOverview {
   id: number;
   name: string;
@@ -74,4 +110,12 @@ export interface AgentOverview {
   daily_limit: number;
   allowed_actions: string[];
   allowed_currencies: string[];
+}
+
+export interface DashboardMetrics {
+  active_agents: number;
+  actions_today: number;
+  executed_actions: number;
+  blocked_actions: number;
+  average_trust: number;
 }

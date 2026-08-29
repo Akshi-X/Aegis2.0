@@ -1,42 +1,59 @@
-import { Search, Bell, ShieldCheck } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { Bell, Calendar, Menu } from "lucide-react";
 
-export function Topbar() {
-  const location = useLocation();
-  
-  let pageTitle = "Dashboard";
-  if (location.pathname.startsWith("/agents")) pageTitle = "Agents";
-  if (location.pathname.startsWith("/actions")) pageTitle = "Actions";
-  if (location.pathname.startsWith("/financial-dna")) pageTitle = "Financial DNA";
-  if (location.pathname.startsWith("/reviews")) pageTitle = "Human Reviews";
-  
+const META: { match: (p: string) => boolean; title: string; subtitle: string }[] = [
+  { match: (p) => p === "/", title: "Overview", subtitle: "Real-time security overview of autonomous financial operations." },
+  { match: (p) => p.startsWith("/agents"), title: "Agents", subtitle: "Manage and monitor autonomous financial agents." },
+  { match: (p) => p.startsWith("/actions"), title: "Actions", subtitle: "Monitor all financial actions proposed by autonomous agents." },
+  { match: (p) => p.startsWith("/financial-dna"), title: "Financial DNA", subtitle: "Behavioural fingerprints of autonomous financial agents." },
+  { match: (p) => p.startsWith("/security"), title: "Security", subtitle: "The AEGIS-X evaluation pipeline and its engines." },
+  { match: (p) => p.startsWith("/reviews"), title: "Human Review", subtitle: "Actions requiring manual intervention." },
+  { match: (p) => p.startsWith("/audit"), title: "Audit Logs", subtitle: "A chronological record of governance events." },
+];
+
+export function Topbar({ onMenu }: { onMenu?: () => void }) {
+  const { pathname } = useLocation();
+  const meta = META.find((m) => m.match(pathname)) ?? META[0];
+
+  const today = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
   return (
-    <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
-      <div className="flex items-center gap-4">
-        <h1 className="text-xl font-semibold text-slate-100">{pageTitle}</h1>
-      </div>
-      
-      <div className="flex items-center gap-6">
-        <div className="relative relative w-64">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input 
-            type="text" 
-            placeholder="Search actions, agents..." 
-            className="w-full bg-slate-950 border border-slate-800 rounded-md py-1.5 pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-700"
-          />
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <span className="badge badge-slate flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3" />
-            Phase 5
-          </span>
-        </div>
-        
-        <button className="text-slate-400 hover:text-slate-200 relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-slate-900" />
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line bg-surface/80 px-4 backdrop-blur-md md:px-8">
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          onClick={onMenu}
+          className="btn btn-ghost btn-sm !px-2 lg:hidden"
+          aria-label="Open navigation"
+        >
+          <Menu className="h-[18px] w-[18px]" />
         </button>
+        <div className="min-w-0">
+          <h1 className="truncate text-[17px] font-semibold leading-tight text-ink">
+            {meta.title}
+          </h1>
+          <p className="truncate text-[12.5px] text-ink-muted">{meta.subtitle}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button className="btn btn-ghost btn-sm hidden sm:inline-flex">
+          <Calendar className="h-4 w-4 text-ink-muted" />
+          {today}
+        </button>
+        <button
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-soft hover:bg-canvas"
+          aria-label="Notifications"
+        >
+          <Bell className="h-[18px] w-[18px]" />
+          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-brand" />
+        </button>
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-[12px] font-semibold text-white">
+          A
+        </div>
       </div>
     </header>
   );
