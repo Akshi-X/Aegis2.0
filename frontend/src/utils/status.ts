@@ -91,9 +91,9 @@ export const toneToPillClass: Record<PillTone, string> = {
 };
 
 export const toneToHex: Record<PillTone, string> = {
-  success: "#16a34a",
-  warning: "#d97706",
-  danger: "#dc2626",
-  brand: "#2563eb",
-  neutral: "#94a3b8",
+  success: "#10b981", // Emerald 500
+  warning: "#f59e0b", // Amber 500
+  danger: "#f43f5e", // Rose 500
+  brand: "#0ea5e9", // Sky 500
+  neutral: "#94a3b8", // Slate 400
 };

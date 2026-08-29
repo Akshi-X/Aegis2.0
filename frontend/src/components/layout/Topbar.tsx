@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { Bell, Calendar, Menu } from "lucide-react";
+import { Calendar, Menu } from "lucide-react";
 
 const META: { match: (p: string) => boolean; title: string; subtitle: string }[] = [
   { match: (p) => p === "/", title: "Overview", subtitle: "Real-time security overview of autonomous financial operations." },
@@ -43,13 +43,6 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
         <button className="btn btn-ghost btn-sm hidden sm:inline-flex">
           <Calendar className="h-4 w-4 text-ink-muted" />
           {today}
-        </button>
-        <button
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-soft hover:bg-canvas"
-          aria-label="Notifications"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-brand" />
         </button>
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-[12px] font-semibold text-white">
           A
