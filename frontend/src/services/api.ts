@@ -51,4 +51,10 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+  getEngineConfig: () => http<Record<string, boolean>>("/engines/config"),
+  updateEngineConfig: (engine_key: string, active: boolean) =>
+    http<Record<string, boolean>>(`/engines/config/${engine_key}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    }),
 };

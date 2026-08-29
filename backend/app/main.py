@@ -13,6 +13,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.actions import router as actions_router
+from app.api.agent import router as agent_router
+from app.api.engines import router as engines_router
 from app.api.router import api_router
 from app.core.config import settings
 
@@ -75,7 +78,10 @@ app.add_middleware(
 
 # Health probes live at the service root by convention, so they stay stable
 # across API versions. Versioned feature routers will mount under
-# settings.api_v1_prefix in later phases.
+# settings.api_v1_prefix.
+app.include_router(agent_router)
+app.include_router(actions_router)
+app.include_router(engines_router)
 app.include_router(api_router)
 
 

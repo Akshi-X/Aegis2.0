@@ -63,6 +63,10 @@ from app.services.engines import (
 
 logger = logging.getLogger(__name__)
 
+# Global state to track which engines are manually toggled off in the UI.
+# If an engine key maps to False, it is bypassed during evaluation.
+ENGINE_TOGGLES: dict[str, bool] = {}
+
 # Independent risk signals. Order within this tier does not matter; they must
 # not read one another's results.
 SIGNAL_ENGINES: list[SecurityEngine] = [
@@ -190,19 +194,28 @@ class AegisOrchestrator:
 
         latency_ms = (time.perf_counter() - started) * 1000
 
-        governance = results.get("governance")
+        gov_result = results.get("governance")
+        if not gov_result or "ENGINE_DISABLED_BY_USER" in gov_result.flags:
+            decision = GovernanceDecision.ESCALATE
+            reason = "Governance engine bypassed. Defaulting to ESCALATE."
+        else:
+            decision_val = gov_result.details.get("decision")
+            if not decision_val:
+                decision = GovernanceDecision.ESCALATE
+                reason = "Governance engine produced no decision."
+            else:
+                decision = GovernanceDecision(decision_val)
+                reason = gov_result.details.get("reason", "Unknown governance reason.")
+
         fusion = results.get("risk_fusion")
         trust = results.get("trust")
-
-        governance_detail = governance.details if governance else {}
-        decision = governance_detail.get("decision", GovernanceDecision.ESCALATE)
 
         evaluation = ActionEvaluation(
             proposal_id=proposal.id,
             agent_id=proposal.agent_id,
             decision=decision,
-            decision_reason=governance_detail.get("reason", ""),
-            provisional=bool(governance_detail.get("provisional", False)),
+            decision_reason=reason,
+            provisional=bool(gov_result.details.get("provisional", False) if gov_result else False),
             overall_risk_score=fusion.risk_score if fusion else None,
             trust_score_at_evaluation=(
                 trust.details.get("trust_score") if trust else None
@@ -241,7 +254,7 @@ class AegisOrchestrator:
             entity_id=evaluation.id,
             message=(
                 f"Evaluated {proposal.action_id}: {decision}. "
-                f"{governance_detail.get('reason', '')}"
+                f"{reason}"
             ),
             payload={
                 "evaluation_id": evaluation.evaluation_id,
